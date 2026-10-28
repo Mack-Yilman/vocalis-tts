@@ -128,7 +128,7 @@ function findSentenceIndexByText(query, sentences) {
   return -1;
 }
 
-class PiperTTSPlugin extends Plugin {
+class VocalisTTSPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
     this.ensureDefaultPaths();
@@ -207,7 +207,7 @@ class PiperTTSPlugin extends Plugin {
       this.app.workspace.on("editor-menu", (menu, editor, view) => {
         menu.addItem((item) => {
           item
-            .setTitle("🔊 Escuchar desde aquí con Piper")
+            .setTitle("🔊 Escuchar desde aquí con Vocalis")
             .setIcon("volume-2")
             .onClick(async () => {
               await this.startReadingSession(view, true);
@@ -217,7 +217,7 @@ class PiperTTSPlugin extends Plugin {
     );
 
     // Icono Ribbon (barra lateral izquierda)
-    this.addRibbonIcon("volume-2", "Piper TTS Pro (Escuchar / Pausar)", async () => {
+    this.addRibbonIcon("volume-2", "Vocalis TTS (Escuchar / Pausar)", async () => {
       const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (activeView) {
         await this.handleUniversalPlayCommand(activeView);
@@ -226,14 +226,14 @@ class PiperTTSPlugin extends Plugin {
       }
     });
 
-    this.addSettingTab(new PiperSettingTab(this.app, this));
+    this.addSettingTab(new VocalisSettingTab(this.app, this));
   }
 
   ensureDefaultPaths() {
     const pluginBaseDir = this.manifest && this.manifest.dir
       ? this.manifest.dir
       : (this.app.vault.adapter && this.app.vault.adapter.basePath
-          ? path.join(this.app.vault.adapter.basePath, '.obsidian', 'plugins', this.manifest.id || 'piper-tts-pro')
+          ? path.join(this.app.vault.adapter.basePath, '.obsidian', 'plugins', this.manifest.id || 'vocalis-tts')
           : '');
 
     if (!this.settings.piperExe) {
@@ -263,7 +263,7 @@ class PiperTTSPlugin extends Plugin {
 
   updateStatusBar(text) {
     if (this.statusBarItem) {
-      this.statusBarItem.setText(`Piper: ${text}`);
+      this.statusBarItem.setText(`Vocalis: ${text}`);
     }
   }
 
@@ -559,7 +559,7 @@ class PiperTTSPlugin extends Plugin {
 
     if (matchedRange) {
       const mark = document.createElement('mark');
-      mark.className = 'piper-teleprompter-highlight';
+      mark.className = 'vocalis-teleprompter-highlight piper-teleprompter-highlight';
       try {
         matchedRange.surroundContents(mark);
         mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -567,7 +567,7 @@ class PiperTTSPlugin extends Plugin {
         // Si el rango cruza etiquetas anidadas, resaltar el contenedor directo
         const parent = matchedRange.startContainer.parentElement;
         if (parent) {
-          parent.classList.add('piper-teleprompter-highlight');
+          parent.classList.add('vocalis-teleprompter-highlight');
           parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }
@@ -616,7 +616,7 @@ class PiperTTSPlugin extends Plugin {
   }
 
   clearReadingHighlights() {
-    const activeMarks = document.querySelectorAll('mark.piper-teleprompter-highlight');
+    const activeMarks = document.querySelectorAll('mark.vocalis-teleprompter-highlight, mark.piper-teleprompter-highlight');
     activeMarks.forEach((m) => {
       const parent = m.parentNode;
       if (parent) {
@@ -627,9 +627,10 @@ class PiperTTSPlugin extends Plugin {
       }
     });
 
-    const activeClasses = document.querySelectorAll('.piper-teleprompter-highlight');
+    const activeClasses = document.querySelectorAll('.vocalis-teleprompter-highlight, .piper-teleprompter-highlight');
     activeClasses.forEach((el) => {
       if (el.tagName !== 'MARK') {
+        el.classList.remove('vocalis-teleprompter-highlight');
         el.classList.remove('piper-teleprompter-highlight');
       }
     });
@@ -787,14 +788,14 @@ class PiperTTSPlugin extends Plugin {
     this.removeFloatingPlayer();
 
     this.playerEl = document.createElement("div");
-    this.playerEl.className = "piper-floating-player";
+    this.playerEl.className = "vocalis-floating-player piper-floating-player";
 
     // Cabecera arrastrable
-    const header = this.playerEl.createDiv({ cls: "piper-player-header" });
-    const titleSpan = header.createSpan({ cls: "piper-player-note-title" });
+    const header = this.playerEl.createDiv({ cls: "vocalis-player-header piper-player-header" });
+    const titleSpan = header.createSpan({ cls: "vocalis-player-note-title piper-player-note-title" });
     titleSpan.setText(`🎧 ${title}`);
 
-    const closeBtn = header.createEl("button", { text: "✕", cls: "piper-player-close" });
+    const closeBtn = header.createEl("button", { text: "✕", cls: "vocalis-player-close piper-player-close" });
     closeBtn.title = "Cerrar reproductor (Alt + D)";
     closeBtn.onclick = (e) => {
       e.stopPropagation();
@@ -804,13 +805,13 @@ class PiperTTSPlugin extends Plugin {
     this.makeDraggable(this.playerEl, header);
 
     // Barra de progreso interactiva (Seek Bar)
-    const progressContainer = this.playerEl.createDiv({ cls: "piper-progress-container" });
-    const progressInfo = progressContainer.createDiv({ cls: "piper-progress-info" });
+    const progressContainer = this.playerEl.createDiv({ cls: "vocalis-progress-container piper-progress-container" });
+    const progressInfo = progressContainer.createDiv({ cls: "vocalis-progress-info piper-progress-info" });
     this.progressTextEl = progressInfo.createSpan({ text: "Cargando..." });
     this.progressPercentEl = progressInfo.createSpan({ text: "0%" });
 
-    const track = progressContainer.createDiv({ cls: "piper-progress-track" });
-    this.progressBarEl = track.createDiv({ cls: "piper-progress-fill" });
+    const track = progressContainer.createDiv({ cls: "vocalis-progress-track piper-progress-track" });
+    this.progressBarEl = track.createDiv({ cls: "vocalis-progress-fill piper-progress-fill" });
     track.title = "Haz clic en cualquier punto para saltar a esa frase";
     track.onclick = (e) => {
       e.stopPropagation();
@@ -822,11 +823,11 @@ class PiperTTSPlugin extends Plugin {
     };
 
     // Fila de controles
-    const controls = this.playerEl.createDiv({ cls: "piper-controls-row" });
-    const mainBtns = controls.createDiv({ cls: "piper-buttons-main" });
+    const controls = this.playerEl.createDiv({ cls: "vocalis-controls-row piper-controls-row" });
+    const mainBtns = controls.createDiv({ cls: "vocalis-buttons-main piper-buttons-main" });
 
     // Botón Anterior
-    const prevBtn = mainBtns.createEl("button", { text: "⏮️", cls: "piper-btn" });
+    const prevBtn = mainBtns.createEl("button", { text: "⏮️", cls: "vocalis-btn piper-btn" });
     prevBtn.title = "Frase anterior (Alt + Flecha Izquierda)";
     prevBtn.onclick = (e) => {
       e.stopPropagation();
@@ -834,7 +835,7 @@ class PiperTTSPlugin extends Plugin {
     };
 
     // Botón Play / Pausa autónomo
-    this.playBtnEl = mainBtns.createEl("button", { text: "⏸️", cls: "piper-btn piper-btn-play" });
+    this.playBtnEl = mainBtns.createEl("button", { text: "⏸️", cls: "vocalis-btn vocalis-btn-play piper-btn piper-btn-play" });
     this.playBtnEl.title = "Play / Pausa (Alt + E)";
     this.playBtnEl.onclick = (e) => {
       e.stopPropagation();
@@ -853,7 +854,7 @@ class PiperTTSPlugin extends Plugin {
     };
 
     // Botón Siguiente
-    const nextBtn = mainBtns.createEl("button", { text: "⏭️", cls: "piper-btn" });
+    const nextBtn = mainBtns.createEl("button", { text: "⏭️", cls: "vocalis-btn piper-btn" });
     nextBtn.title = "Frase siguiente (Alt + Flecha Derecha)";
     nextBtn.onclick = (e) => {
       e.stopPropagation();
@@ -861,7 +862,7 @@ class PiperTTSPlugin extends Plugin {
     };
 
     // Botón Reiniciar
-    const restartBtn = mainBtns.createEl("button", { text: "🔄", cls: "piper-btn" });
+    const restartBtn = mainBtns.createEl("button", { text: "🔄", cls: "vocalis-btn piper-btn" });
     restartBtn.title = "Reiniciar esta nota desde el principio";
     restartBtn.onclick = (e) => {
       e.stopPropagation();
@@ -869,16 +870,16 @@ class PiperTTSPlugin extends Plugin {
     };
 
     // Botones secundarios (Voz y Velocidad)
-    const secondaryBtns = controls.createDiv({ cls: "piper-buttons-secondary" });
+    const secondaryBtns = controls.createDiv({ cls: "vocalis-buttons-secondary piper-buttons-secondary" });
 
-    this.voiceBtnEl = secondaryBtns.createEl("button", { cls: "piper-badge-btn" });
+    this.voiceBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn piper-badge-btn" });
     this.voiceBtnEl.title = "Clic para cambiar la voz del lector";
     this.voiceBtnEl.onclick = (e) => {
       e.stopPropagation();
       this.cycleVoice();
     };
 
-    this.speedBtnEl = secondaryBtns.createEl("button", { cls: "piper-badge-btn" });
+    this.speedBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn piper-badge-btn" });
     this.speedBtnEl.title = "Clic para cambiar velocidad (hasta 2.5x al instante)";
     this.speedBtnEl.onclick = (e) => {
       e.stopPropagation();
@@ -977,7 +978,7 @@ class PiperTTSPlugin extends Plugin {
   }
 }
 
-class PiperSettingTab extends PluginSettingTab {
+class VocalisSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -986,7 +987,7 @@ class PiperSettingTab extends PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Piper TTS Pro (Offline, Teleprompter y Memoria)" });
+    containerEl.createEl("h2", { text: "Vocalis TTS (Offline, Teleprompter y Memoria)" });
 
     new Setting(containerEl)
       .setName("Voz neuronal por defecto")
@@ -1076,7 +1077,28 @@ class PiperSettingTab extends PluginSettingTab {
             new Notice("Historial de lectura borrado correctamente.");
           });
       });
+
+    // Sección de Créditos y Reconocimientos
+    containerEl.createEl("h3", { text: "Reconocimientos y Créditos" });
+    const creditsP = containerEl.createEl("p", {
+      text: "Vocalis TTS integra y da crédito a las siguientes tecnologías y datasets de código abierto:"
+    });
+    creditsP.style.fontSize = "12.5px";
+    creditsP.style.color = "var(--text-muted)";
+
+    const creditsList = containerEl.createEl("ul");
+    creditsList.style.fontSize = "12px";
+    creditsList.style.color = "var(--text-muted)";
+
+    const li1 = creditsList.createEl("li");
+    li1.innerHTML = "<strong>Rhasspy Piper TTS</strong>: Motor neuronal creado por Michael Hansen (Licencia MIT/Apache 2.0).";
+
+    const li2 = creditsList.createEl("li");
+    li2.innerHTML = "<strong>eSpeak-NG</strong>: Motor fonetizador de código abierto.";
+
+    const li3 = creditsList.createEl("li");
+    li3.innerHTML = "<strong>Datasets Neuronales</strong>: Sharvard (ES), Davefx (ES) y Daniela (AR) alojados en Piper Voices.";
   }
 }
 
-module.exports = PiperTTSPlugin;
+module.exports = VocalisTTSPlugin;

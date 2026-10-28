@@ -1,9 +1,9 @@
 {
-  "id": "piper-tts-pro",
-  "name": "Piper TTS Pro (Offline)",
+  "id": "vocalis-tts",
+  "name": "Vocalis TTS (Offline & Teleprompter)",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Texto a voz neuronal 100% offline y privado con Piper TTS, teleprompter en tiempo real y memoria de lectura.",
+  "description": "Lectura neuronal offline con voces en español, teleprompter dual en tiempo real y memoria por nota. Motor Piper TTS integrado.",
   "author": "Mack Chirinos",
   "isDesktopOnly": true
 }

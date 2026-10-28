@@ -1,8 +1,8 @@
-# Piper TTS Pro para Obsidian (Offline, Teleprompter Dual y Memoria)
+# Vocalis TTS para Obsidian (Offline, Teleprompter Dual y Memoria)
 
-Plugin de texto a voz (TTS) neuronal de alto rendimiento, privacidad absoluta y 100% offline para Obsidian. Integra el motor local **Rhasspy Piper**, seguimiento visual de lectura tipo teleprompter en tiempo real (tanto en **Modo Edición** como en **Modo Lectura**) y memoria persistente independiente por cada nota.
+Plugin de lectura en voz alta (Text-to-Speech) neuronal de alto rendimiento, privacidad absoluta y 100% offline para Obsidian. Integra teleprompter visual sin desfase (tanto en **Modo Edición** como en **Modo Lectura**), velocidad dinámica hasta 2.5x en tiempo real y memoria de posición independiente por cada nota.
 
-Publicado bajo **Licencia MIT** por **Mack Chirinos**.
+Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper TTS**. Publicado bajo **Licencia MIT** por **Mack Chirinos**.
 
 ---
 
@@ -36,25 +36,22 @@ Publicado bajo **Licencia MIT** por **Mack Chirinos**.
 ## 📁 Estructura del Repositorio
 
 ```text
-TTS - Piper Pro/
+Vocalis TTS/
 ├── LICENSE                       # Licencia MIT (Mack Chirinos, 2026)
 ├── README.md                     # Documentación de usuario y despliegue
 ├── manifest.json                 # Manifiesto del plugin para Obsidian
 ├── styles.css                    # Estilos CSS del reproductor flotante y teleprompter
 ├── main.js                       # Código fuente del plugin para Obsidian
-├── package.json                  # Dependencias npm y scripts de empaquetado
-├── tsconfig.json                 # Configuración opcional para TypeScript
-├── esbuild.config.mjs            # Empaquetador esbuild
+├── package.json                  # Metadatos del paquete npm
 ├── .gitignore                    # Reglas de exclusión para Git (archivos de contexto y temporales)
 ├── piper/                        # Motor Piper standalone y modelos locales
 │   ├── piper.exe                 # Ejecutable nativo C++ para Windows x64
 │   ├── *.dll                     # Bibliotecas dinámicas (ONNX Runtime, espeak-ng, etc.)
 │   ├── espeak-ng-data/           # Diccionarios y datos fonéticos
 │   └── models/                   # Modelos neuronales ONNX (.onnx y .json)
-│       ├── es_ES-sharvard-medium.onnx
-│       ├── es_ES-sharvard-medium.onnx.json
-│       ├── es_ES-davefx-medium.onnx
-│       └── es_ES-davefx-medium.onnx.json
+│       ├── es_ES-sharvard-medium.onnx (+ .json)
+│       ├── es_ES-davefx-medium.onnx (+ .json)
+│       └── es_AR-daniela-high.onnx (+ .json)
 └── scripts/
     ├── download-voice.ps1        # Script para descargar voces adicionales (ej. Daniela Latam)
     ├── install-to-vault.ps1      # Despliegue y sincronización rápida en un Vault de Obsidian
@@ -86,16 +83,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-to-vault.ps1 -VaultPa
 ```
 
 ### Opción 2: Instalación Manual
-1. Crea la carpeta `piper-tts-pro` dentro de tu Vault en:
-   `<Tu_Vault>/.obsidian/plugins/piper-tts-pro/`
+1. Crea la carpeta `vocalis-tts` dentro de tu Vault en:
+   `<Tu_Vault>/.obsidian/plugins/vocalis-tts/`
 2. Copia los archivos `main.js`, `manifest.json`, `styles.css` y la carpeta `piper/` dentro de dicha ubicación.
-3. Abre Obsidian, ve a **Ajustes > Plugins de la comunidad** y activa **Piper TTS Pro**.
+3. Abre Obsidian, ve a **Ajustes > Plugins de la comunidad** y activa **Vocalis TTS**.
 
 ---
 
 ## 🎙️ Descargar Voces Adicionales (Opcional)
 
-Para instalar la voz femenina latinoamericana (`es_AR-daniela-high`, ~114 MB), ejecuta:
+Para descargar o actualizar la voz femenina latinoamericana (`es_AR-daniela-high`, ~114 MB), ejecuta:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download-voice.ps1 -Voice daniela
 ```
@@ -103,6 +100,20 @@ El plugin detectará el nuevo modelo automáticamente en Obsidian sin necesidad 
 
 ---
 
+## 🎖️ Reconocimientos y Autoría (Credits & Attribution)
+
+Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código abierto excepcionales:
+
+- **[Rhasspy Piper TTS](https://github.com/rhasspy/piper)**: Motor neuronal rápido y local desarrollado por **Michael Hansen** ([@synesthesiam](https://github.com/synesthesiam)) y la comunidad de Rhasspy / Nabu Casa. Licenciado bajo MIT y Apache 2.0.
+- **[eSpeak-NG](https://github.com/espeak-ng/espeak-ng)**: Motor de fonemización y reglas fonéticas de texto a habla.
+- **Datasets y Modelos Neuronales**:
+  - **Sharvard**: Conjunto de frases fonéticas Spanish Harvard Sentences, entrenado para Piper con locutores femenino y masculino de España.
+  - **Davefx**: Modelo narrativo de locutor masculino en español de España.
+  - **Daniela**: Modelo neuronal de locutora femenina en español latinoamericano (Argentina).
+- **[Obsidian](https://obsidian.md)**: Plataforma de gestión del conocimiento extensible desarrollada por Dynalist Inc.
+
+---
+
 ## 📄 Licencia
 
-Este proyecto está bajo la [Licencia MIT](LICENSE) - creado y mantenido por **Mack Chirinos** (2026).
+Este proyecto está distribuido bajo la [Licencia MIT](LICENSE) - creado y mantenido por **Mack Chirinos** (2026).

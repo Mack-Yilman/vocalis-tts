@@ -1,7 +1,7 @@
 {
-  "name": "piper-tts-pro",
+  "name": "vocalis-tts",
   "version": "1.0.0",
-  "description": "Lector neuronal de texto a voz offline y privado para Obsidian con teleprompter y memoria de lectura.",
+  "description": "Lector neuronal de texto a voz offline y privado para Obsidian con teleprompter dual y memoria de lectura.",
   "main": "main.js",
   "scripts": {
     "version": "node -e \"console.log(require('./manifest.json').version)\""
@@ -10,8 +10,10 @@
     "obsidian",
     "obsidian-plugin",
     "tts",
+    "vocalis",
     "piper",
     "speech-to-text",
+    "text-to-speech",
     "offline",
     "teleprompter"
   ],

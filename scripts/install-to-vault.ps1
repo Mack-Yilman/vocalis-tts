@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Instalador / Desplegador de Piper TTS Pro ===" -ForegroundColor Cyan
+Write-Host "=== Instalador / Desplegador de Vocalis TTS ===" -ForegroundColor Cyan
 
 if (-not (Test-Path $VaultPath)) {
     Write-Error "No se encuentra el Vault de Obsidian en la ruta: $VaultPath"
@@ -16,7 +16,7 @@ if (-not (Test-Path $pluginsDir)) {
     New-Item -ItemType Directory -Force -Path $pluginsDir | Out-Null
 }
 
-$pluginTargetDir = Join-Path $pluginsDir "piper-tts-pro"
+$pluginTargetDir = Join-Path $pluginsDir "vocalis-tts"
 if (-not (Test-Path $pluginTargetDir)) {
     New-Item -ItemType Directory -Force -Path $pluginTargetDir | Out-Null
     Write-Host "[+] Creado directorio de plugin: $pluginTargetDir" -ForegroundColor Green
