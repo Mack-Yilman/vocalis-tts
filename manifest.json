@@ -1,9 +1,9 @@
 {
   "id": "vocalis-tts",
-  "name": "Vocalis TTS (Offline & Teleprompter)",
+  "name": "Vocalis TTS",
   "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Lectura neuronal offline con voces en español, teleprompter dual en tiempo real y memoria por nota. Motor Piper TTS integrado.",
+  "description": "Offline neural text-to-speech with dual teleprompter and per-note memory. Powered by Piper TTS.",
   "author": "Mack Chirinos",
   "isDesktopOnly": true
 }
