@@ -1,0 +1,221 @@
+/* ==========================================================================
+   Estilos nativos del reproductor flotante Piper TTS Pro para Obsidian
+   ========================================================================== */
+
+.piper-floating-player {
+  position: fixed;
+  top: 75px;
+  right: 28px;
+  bottom: auto;
+  z-index: 9999;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 320px;
+  max-width: 400px;
+  font-family: var(--font-interface);
+  color: var(--text-normal);
+  backdrop-filter: blur(14px);
+  animation: piperSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+@keyframes piperSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.piper-player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-accent);
+  cursor: grab;
+  padding-bottom: 2px;
+}
+
+.piper-player-header:active {
+  cursor: grabbing;
+}
+
+.piper-player-note-title {
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-normal);
+  font-weight: 600;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.piper-player-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.piper-player-close:hover {
+  color: var(--text-error, #f05252);
+  background-color: var(--background-modifier-hover);
+}
+
+/* --- Barra de progreso (Seek-Bar) --- */
+.piper-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.piper-progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.piper-progress-track {
+  width: 100%;
+  height: 7px;
+  background-color: var(--background-modifier-border);
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: height 0.15s ease;
+}
+
+.piper-progress-track:hover {
+  height: 9px;
+}
+
+.piper-progress-fill {
+  height: 100%;
+  background-color: var(--interactive-accent);
+  border-radius: 4px;
+  transition: width 0.15s ease-out;
+  box-shadow: 0 0 8px rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.5);
+}
+
+/* --- Fila de Controles y Botones --- */
+.piper-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+  gap: 8px;
+}
+
+.piper-buttons-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.piper-btn {
+  background-color: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  min-width: 28px;
+  height: 28px;
+}
+
+.piper-btn:hover {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent, #ffffff);
+  border-color: var(--interactive-accent);
+}
+
+.piper-btn:active {
+  transform: scale(0.92);
+}
+
+.piper-btn-play {
+  padding: 5px 12px;
+  font-weight: 600;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent, #ffffff);
+  border-color: var(--interactive-accent);
+}
+
+.piper-btn-play:hover {
+  filter: brightness(1.12);
+}
+
+.piper-buttons-secondary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.piper-badge-btn {
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.piper-badge-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+
+.piper-badge-btn:active {
+  transform: scale(0.94);
+}
+
+/* --- Resaltado del Teleprompter --- */
+/* Resaltado en Modo Lectura (Reading View / Rendered HTML) */
+mark.piper-teleprompter-highlight {
+  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.38) !important;
+  color: inherit !important;
+  border-radius: 4px;
+  padding: 1px 3px;
+  margin: 0 -1px;
+  box-shadow: 0 0 10px rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.35);
+  transition: background-color 0.2s ease;
+  outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.45);
+}
+
+/* Resaltado genérico para Modo Edición */
+.piper-teleprompter-selection {
+  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.25) !important;
+  border-radius: 3px;
+}

@@ -1,0 +1,30 @@
+# Dependencias y compilación
+node_modules/
+dist/
+main.js.map
+
+# Modelos neuronales pesados (Descargar mediante scripts/download-voice.ps1 para no exceder limite 100MB de GitHub)
+*.onnx
+piper/models/*.onnx
+
+# Ficheros temporales y audios generados
+*.wav
+*.mp3
+piper/*.wav
+sentence_*.wav
+playback_*.wav
+
+# Archivos de contexto del proyecto (PROHIBIDO SUBIR A REPOSITORIOS)
+agents.md
+claude.md
+gemini.md
+
+# Configuración y datos locales del usuario
+data.json
+.obsidian/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini

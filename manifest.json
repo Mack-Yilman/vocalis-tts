@@ -1,0 +1,9 @@
+{
+  "id": "piper-tts-pro",
+  "name": "Piper TTS Pro (Offline)",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Texto a voz neuronal 100% offline y privado con Piper TTS, teleprompter en tiempo real y memoria de lectura.",
+  "author": "Mack Chirinos",
+  "isDesktopOnly": true
+}
