@@ -1,102 +1,58 @@
 /* ==========================================================================
-   Estilos nativos del reproductor flotante Vocalis TTS para Obsidian
+   Estilos del panel lateral Vocalis TTS para Obsidian
    ========================================================================== */
 
-.vocalis-floating-player,
-.piper-floating-player {
-  position: fixed;
-  top: 75px;
-  right: 28px;
-  bottom: auto;
-  z-index: 9999;
-  background-color: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
-  padding: 12px 16px;
+.vocalis-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 320px;
-  max-width: 400px;
+  gap: 12px;
+  padding: 4px 2px;
   font-family: var(--font-interface);
   color: var(--text-normal);
-  backdrop-filter: blur(14px);
-  animation: vocalisSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
 }
 
-@keyframes vocalisSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.vocalis-player-header,
-.piper-player-header {
+.vocalis-player-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-accent);
-  cursor: grab;
-  padding-bottom: 2px;
+  gap: 8px;
 }
 
-.vocalis-player-header:active,
-.piper-player-header:active {
-  cursor: grabbing;
-}
-
-.vocalis-player-note-title,
-.piper-player-note-title {
-  max-width: 240px;
+.vocalis-player-note-title {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text-normal);
   font-weight: 600;
-  font-size: 12.5px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font-size: var(--font-ui-small);
 }
 
-.vocalis-player-close,
-.piper-player-close {
+.vocalis-player-close {
+  flex-shrink: 0;
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--text-muted);
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
-  transition: all 0.15s ease;
 }
 
-.vocalis-player-close:hover,
-.piper-player-close:hover {
-  color: var(--text-error, #f05252);
+.vocalis-player-close:hover {
   background-color: var(--background-modifier-hover);
 }
 
 /* --- Barra de progreso (Seek-Bar) --- */
-.vocalis-progress-container,
-.piper-progress-container {
+.vocalis-progress-container {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-.vocalis-progress-info,
-.piper-progress-info {
+.vocalis-progress-info {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
@@ -104,101 +60,68 @@
   font-weight: 500;
 }
 
-.vocalis-progress-track,
-.piper-progress-track {
+.vocalis-progress-track {
   width: 100%;
   height: 7px;
   background-color: var(--background-modifier-border);
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
-  position: relative;
   transition: height 0.15s ease;
 }
 
-.vocalis-progress-track:hover,
-.piper-progress-track:hover {
+.vocalis-progress-track:hover {
   height: 9px;
 }
 
-.vocalis-progress-fill,
-.piper-progress-fill {
+.vocalis-progress-fill {
   height: 100%;
   background-color: var(--interactive-accent);
   border-radius: 4px;
   transition: width 0.15s ease-out;
-  box-shadow: 0 0 8px rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.5);
 }
 
-/* --- Fila de Controles y Botones --- */
-.vocalis-controls-row,
-.piper-controls-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 2px;
-  gap: 8px;
-}
-
+/* --- Botones --- */
 .vocalis-buttons-main,
-.piper-buttons-main {
+.vocalis-buttons-secondary {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
-.vocalis-btn,
-.piper-btn {
+.vocalis-btn {
+  flex: 1;
   background-color: var(--background-modifier-hover);
   border: 1px solid var(--background-modifier-border);
   color: var(--text-normal);
   border-radius: 6px;
-  padding: 5px 9px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-  min-width: 28px;
-  height: 28px;
+  height: 30px;
+  padding: 0;
 }
 
-.vocalis-btn:hover,
-.piper-btn:hover {
-  background-color: var(--interactive-accent);
-  color: var(--text-on-accent, #ffffff);
+.vocalis-btn:hover {
   border-color: var(--interactive-accent);
 }
 
 .vocalis-btn:active,
-.piper-btn:active {
-  transform: scale(0.92);
+.vocalis-badge-btn:active {
+  transform: scale(0.94);
 }
 
-.vocalis-btn-play,
-.piper-btn-play {
-  padding: 5px 12px;
-  font-weight: 600;
+.vocalis-btn-play {
   background-color: var(--interactive-accent);
-  color: var(--text-on-accent, #ffffff);
   border-color: var(--interactive-accent);
 }
 
-.vocalis-btn-play:hover,
-.piper-btn-play:hover {
+.vocalis-btn-play:hover {
   filter: brightness(1.12);
 }
 
-.vocalis-buttons-secondary,
-.piper-buttons-secondary {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.vocalis-badge-btn,
-.piper-badge-btn {
+.vocalis-badge-btn {
+  flex: 1;
+  min-width: 0;
   background-color: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   color: var(--text-muted);
@@ -207,20 +130,66 @@
   padding: 4px 8px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.vocalis-badge-btn:hover,
-.piper-badge-btn:hover {
+.vocalis-badge-btn:hover {
   color: var(--text-normal);
   border-color: var(--interactive-accent);
+}
+
+/* --- Continuar escuchando --- */
+.vocalis-section-title {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.vocalis-continue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vocalis-continue-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.vocalis-continue-item:hover {
   background-color: var(--background-modifier-hover);
 }
 
-.vocalis-badge-btn:active,
-.piper-badge-btn:active {
-  transform: scale(0.94);
+.vocalis-continue-item.is-active {
+  color: var(--text-accent);
+}
+
+.vocalis-continue-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vocalis-continue-percent {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vocalis-continue-empty {
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
 }
 
 /* --- Resaltado del Teleprompter --- */

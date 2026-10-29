@@ -42,6 +42,17 @@ if ((-not (Test-Path $targetPiper)) -and (Test-Path $srcPiper)) {
     Write-Host "[+] Copiando motor Piper al plugin en el Vault (primera instalacion)..." -ForegroundColor Yellow
     Copy-Item -Path $srcPiper -Destination $pluginTargetDir -Recurse -Force
     Write-Host "[OK] Motor Piper y modelos sincronizados en el Vault." -ForegroundColor Green
+} elseif (Test-Path $srcPiper) {
+    # Instalacion existente: copiar solo los modelos que falten (voces nuevas)
+    $targetModels = Join-Path $targetPiper "models"
+    New-Item -ItemType Directory -Force -Path $targetModels | Out-Null
+    foreach ($model in Get-ChildItem (Join-Path $srcPiper "models") -File) {
+        $dest = Join-Path $targetModels $model.Name
+        if (-not (Test-Path $dest)) {
+            Copy-Item -Path $model.FullName -Destination $dest
+            Write-Host "[+] Modelo nuevo: $($model.Name)" -ForegroundColor Green
+        }
+    }
 }
 
 Write-Host "`nPlugin desplegado correctamente en: $pluginTargetDir" -ForegroundColor Cyan

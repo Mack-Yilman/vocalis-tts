@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-    Descargador opcional de voces adicionales para Piper TTS Pro.
-    Permite descargar la voz femenina latinoamericana (Argentina) 'daniela' en calidad 'high'.
+    Descargador opcional de voces adicionales para Vocalis TTS.
+    Voces: 'daniela' (es_AR high), 'lessac' (en_US medium, femenina),
+    'ryan' (en_US medium, masculina) o 'english' (lessac + ryan).
 #>
 param(
     [string]$Voice = "daniela"
@@ -17,25 +18,35 @@ if (-not (Test-Path $modelsDir)) {
     New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
 }
 
-Write-Host "=== Descargador de Voces para Piper TTS Pro ===" -ForegroundColor Cyan
+# Voz -> ruta dentro de rhasspy/piper-voices (sin extension)
+$catalog = @{
+    "daniela" = "es/es_AR/daniela/high/es_AR-daniela-high"
+    "lessac"  = "en/en_US/lessac/medium/en_US-lessac-medium"
+    "ryan"    = "en/en_US/ryan/medium/en_US-ryan-medium"
+}
+$groups = @{ "english" = @("lessac", "ryan") }
+
+$voices = if ($groups.ContainsKey($Voice)) { $groups[$Voice] } else { @($Voice) }
+
+Write-Host "=== Descargador de Voces para Vocalis TTS ===" -ForegroundColor Cyan
 Write-Host "Destino de modelos: $modelsDir" -ForegroundColor Gray
 
-if ($Voice -eq "daniela") {
-    $onnxUrl = "https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx"
-    $jsonUrl = "https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json"
-    
-    $onnxDest = Join-Path $modelsDir "es_AR-daniela-high.onnx"
-    $jsonDest = Join-Path $modelsDir "es_AR-daniela-high.onnx.json"
+foreach ($v in $voices) {
+    if (-not $catalog.ContainsKey($v)) {
+        Write-Warning "Voz desconocida: $v. Opciones: daniela, lessac, ryan, english."
+        continue
+    }
+    $rel = $catalog[$v]
+    $name = Split-Path $rel -Leaf
+    $baseUrl = "https://huggingface.co/rhasspy/piper-voices/resolve/main/$rel"
 
-    Write-Host "[1/2] Descargando configuracion JSON de Daniela..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri $jsonUrl -OutFile $jsonDest
-    
-    Write-Host "[2/2] Descargando modelo ONNX de Daniela (~114 MB)..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri $onnxUrl -OutFile $onnxDest
+    Write-Host "[$v] Descargando configuracion JSON..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri "$baseUrl.onnx.json" -OutFile (Join-Path $modelsDir "$name.onnx.json")
 
-    Write-Host "`n[OK] Voz 'es_AR-daniela-high' instalada con exito en piper/models." -ForegroundColor Green
-    Write-Host "El plugin detectara la voz automaticamente en Obsidian." -ForegroundColor Cyan
-} else {
-    Write-Warning "Voz desconocida: $Voice. Opciones disponibles: 'daniela'."
+    Write-Host "[$v] Descargando modelo ONNX..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri "$baseUrl.onnx" -OutFile (Join-Path $modelsDir "$name.onnx")
+
+    Write-Host "[OK] Voz '$name' instalada en piper/models." -ForegroundColor Green
 }
 
+Write-Host "El plugin detectara las voces automaticamente en Obsidian." -ForegroundColor Cyan
