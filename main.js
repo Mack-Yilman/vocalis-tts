@@ -1,4 +1,4 @@
-const { Plugin, PluginSettingTab, Setting, Notice, MarkdownView, ItemView, TFile } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, Notice, MarkdownView, ItemView, TFile, setIcon } = require('obsidian');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -1090,43 +1090,55 @@ class VocalisTTSPlugin extends Plugin {
   }
 
   // --- REPRODUCTOR EN LA BARRA LATERAL DERECHA ---
+  // Iconos Lucide nativos (setIcon) y clickable-icon: los temas pintan los <button> y los emojis se ven como cuadritos
+  createIconButton(parent, icon, label, onClick, cls = "") {
+    const btn = parent.createDiv({ cls: `clickable-icon vocalis-icon-btn ${cls}`.trim(), attr: { "aria-label": label } });
+    setIcon(btn, icon);
+    this.makePressable(btn, onClick);
+    return btn;
+  }
+
+  // Un div que actúa como botón: clic, foco con Tab y Enter/Espacio
+  makePressable(el, onClick) {
+    el.setAttr("role", "button");
+    el.setAttr("tabindex", "0");
+    el.onclick = onClick;
+    el.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onClick(e);
+      }
+    };
+  }
+
   renderPlayer(container) {
     container.empty();
     this.playerEl = container.createDiv({ cls: "vocalis-panel" });
+    const card = this.playerEl.createDiv({ cls: "vocalis-card" });
 
-    const header = this.playerEl.createDiv({ cls: "vocalis-player-header" });
-    this.playerTitleEl = header.createSpan({ cls: "vocalis-player-note-title" });
-    this.stopBtnEl = header.createEl("button", { text: "⏹️", cls: "vocalis-player-close" });
-    this.stopBtnEl.title = "Detener lectura (Alt + D)";
-    this.stopBtnEl.onclick = () => this.stopPlayback();
+    const header = card.createDiv({ cls: "vocalis-player-header" });
+    const titles = header.createDiv({ cls: "vocalis-player-titles" });
+    this.playerTitleEl = titles.createDiv({ cls: "vocalis-player-note-title" });
+    this.playerSubtitleEl = titles.createDiv({ cls: "vocalis-player-subtitle" });
+    this.stopBtnEl = this.createIconButton(header, "square", "Detener lectura (Alt + D)", () => this.stopPlayback());
 
     // Barra de progreso interactiva (Seek Bar)
-    this.progressWrapEl = this.playerEl.createDiv({ cls: "vocalis-progress-container" });
-    const progressInfo = this.progressWrapEl.createDiv({ cls: "vocalis-progress-info" });
-    this.progressTextEl = progressInfo.createSpan({ text: "Cargando..." });
-    this.progressPercentEl = progressInfo.createSpan({ text: "0%" });
-
-    const track = this.progressWrapEl.createDiv({ cls: "vocalis-progress-track" });
-    this.progressBarEl = track.createDiv({ cls: "vocalis-progress-fill" });
-    track.title = "Haz clic en cualquier punto para saltar a esa frase";
-    track.onclick = (e) => {
+    this.progressWrapEl = card.createDiv({ cls: "vocalis-progress-track" });
+    this.progressBarEl = this.progressWrapEl.createDiv({ cls: "vocalis-progress-fill" });
+    this.progressWrapEl.setAttr("aria-label", "Haz clic en cualquier punto para saltar a esa frase");
+    this.progressWrapEl.onclick = (e) => {
       if (!this.isPlaying || !this.sentences || this.sentences.length === 0) return;
-      const rect = track.getBoundingClientRect();
+      const rect = this.progressWrapEl.getBoundingClientRect();
       const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       this.currentIndex = Math.min(this.sentences.length - 1, Math.floor(clickRatio * this.sentences.length));
       this.skipSentence(0);
     };
 
-    // Controles principales
-    const mainBtns = this.playerEl.createDiv({ cls: "vocalis-buttons-main" });
-
-    const prevBtn = mainBtns.createEl("button", { text: "⏮️", cls: "vocalis-btn" });
-    prevBtn.title = "Frase anterior (Alt + Flecha Izquierda)";
-    prevBtn.onclick = () => this.skipSentence(-1);
-
-    this.playBtnEl = mainBtns.createEl("button", { text: "▶️", cls: "vocalis-btn vocalis-btn-play" });
-    this.playBtnEl.title = "Play / Pausa (Alt + E)";
-    this.playBtnEl.onclick = () => {
+    // Controles: reiniciar, anterior, play grande, siguiente
+    const controls = card.createDiv({ cls: "vocalis-controls" });
+    this.createIconButton(controls, "rotate-ccw", "Reiniciar esta nota desde el principio", () => this.restartNote());
+    this.createIconButton(controls, "skip-back", "Frase anterior (Alt + Flecha Izquierda)", () => this.skipSentence(-1));
+    this.playBtnEl = this.createIconButton(controls, "play", "Play / Pausa (Alt + E)", () => {
       if (this.isPlaying) {
         if (this.isPaused) {
           this.resumePlayback();
@@ -1141,26 +1153,19 @@ class VocalisTTSPlugin extends Plugin {
       } else {
         new Notice("Abre una nota en Obsidian para escucharla.");
       }
+    }, "vocalis-play-btn");
+    this.createIconButton(controls, "skip-forward", "Frase siguiente (Alt + Flecha Derecha)", () => this.skipSentence(1));
+
+    // Chips de voz y velocidad
+    const chips = card.createDiv({ cls: "vocalis-chips" });
+    const createChip = (icon, label, onClick) => {
+      const chip = chips.createDiv({ cls: "vocalis-chip", attr: { "aria-label": label } });
+      setIcon(chip.createSpan({ cls: "vocalis-chip-icon" }), icon);
+      this.makePressable(chip, onClick);
+      return chip.createSpan({ cls: "vocalis-chip-text" });
     };
-
-    const nextBtn = mainBtns.createEl("button", { text: "⏭️", cls: "vocalis-btn" });
-    nextBtn.title = "Frase siguiente (Alt + Flecha Derecha)";
-    nextBtn.onclick = () => this.skipSentence(1);
-
-    const restartBtn = mainBtns.createEl("button", { text: "🔄", cls: "vocalis-btn" });
-    restartBtn.title = "Reiniciar esta nota desde el principio";
-    restartBtn.onclick = () => this.restartNote();
-
-    // Voz y velocidad
-    const secondaryBtns = this.playerEl.createDiv({ cls: "vocalis-buttons-secondary" });
-
-    this.voiceBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn" });
-    this.voiceBtnEl.title = "Clic para cambiar la voz del lector";
-    this.voiceBtnEl.onclick = () => this.cycleVoice();
-
-    this.speedBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn" });
-    this.speedBtnEl.title = "Clic para cambiar velocidad (hasta 2.5x al instante)";
-    this.speedBtnEl.onclick = () => this.cycleSpeed();
+    this.voiceBtnEl = createChip("user", "Cambiar la voz del lector", () => this.cycleVoice());
+    this.speedBtnEl = createChip("gauge", "Cambiar velocidad (hasta 2.5x al instante)", () => this.cycleSpeed());
 
     // Notas con lectura a medias
     this.playerEl.createDiv({ cls: "vocalis-section-title", text: "Continuar escuchando" });
@@ -1177,16 +1182,15 @@ class VocalisTTSPlugin extends Plugin {
     const current = Math.min(total, this.currentIndex + 1);
     const percent = Math.round((current / total) * 100);
 
-    this.playerTitleEl.setText(active ? `🎧 ${this.currentFile.basename}` : "Sin lectura activa");
+    this.playerTitleEl.setText(active ? this.currentFile.basename : "Sin lectura activa");
+    this.playerSubtitleEl.setText(active ? `Frase ${current} de ${total} · ${percent} %` : "Abre una nota y pulsa play");
     this.stopBtnEl.toggle(!!active);
     this.progressWrapEl.toggle(!!active);
-    this.progressTextEl.setText(`Frase ${current} de ${total}`);
-    this.progressPercentEl.setText(`${percent}%`);
     this.progressBarEl.style.width = `${percent}%`;
-    this.playBtnEl.setText(active && !this.isPaused ? "⏸️" : "▶️");
+    setIcon(this.playBtnEl, active && !this.isPaused ? "pause" : "play");
 
     const voiceKey = this.getVoiceFor(this.currentLang());
-    this.voiceBtnEl.setText(voiceKey ? VOICE_DEFINITIONS[voiceKey].badge : `⚠️ Sin voz (${this.currentLang().toUpperCase()})`);
+    this.voiceBtnEl.setText(voiceKey ? VOICE_DEFINITIONS[voiceKey].badge.replace(/^\S+\s/, "") : `Sin voz (${this.currentLang().toUpperCase()})`);
     this.speedBtnEl.setText(`${this.settings.playbackSpeed}x`);
 
     this.renderContinueList();
@@ -1208,18 +1212,36 @@ class VocalisTTSPlugin extends Plugin {
 
     for (const [filePath, st] of entries) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      const item = this.continueListEl.createDiv({ cls: "vocalis-continue-item" });
-      if (this.isPlaying && this.currentFile && this.currentFile.path === filePath) item.addClass("is-active");
-      item.createSpan({ cls: "vocalis-continue-name", text: file.basename });
-      item.createSpan({ cls: "vocalis-continue-percent", text: `${st.percent}%` });
-      item.title = `${filePath}\nClic para abrir y reanudar`;
-      item.onclick = async () => {
+      const isCurrent = this.isPlaying && this.currentFile && this.currentFile.path === filePath;
+      // title y no aria-label: el tooltip de Obsidian chocaría con el de la ✕ anidada
+      const item = this.continueListEl.createDiv({ cls: "vocalis-continue-item", attr: { title: `${filePath}\nClic para abrir y reanudar` } });
+      if (isCurrent) item.addClass("is-active");
+
+      const row = item.createDiv({ cls: "vocalis-continue-row" });
+      setIcon(row.createSpan({ cls: "vocalis-continue-icon" }), "file-text");
+      row.createSpan({ cls: "vocalis-continue-name", text: file.basename });
+      row.createSpan({ cls: "vocalis-continue-percent", text: `${st.percent} %` });
+      // La nota en lectura no se borra: se volvería a guardar en la siguiente frase
+      if (!isCurrent) {
+        this.createIconButton(row, "x", "Borrar dónde ibas (la nota no se toca)", async (e) => {
+          e.stopPropagation();
+          delete this.settings.progress[filePath];
+          await this.saveSettings();
+          this.renderContinueList();
+          new Notice(`Se borró dónde ibas en «${file.basename}».`);
+        }, "vocalis-continue-remove");
+      }
+
+      item.createDiv({ cls: "vocalis-continue-bar" }).createDiv({ cls: "vocalis-continue-bar-fill" }).style.width = `${st.percent}%`;
+
+      // La ✕ llama a stopPropagation, así su clic o Enter no abre la nota
+      this.makePressable(item, async () => {
         const leaf = this.app.workspace.getLeaf(false);
         await leaf.openFile(file);
         if (leaf.view instanceof MarkdownView) {
           await this.startReadingSession(leaf.view, false);
         }
-      };
+      });
     }
   }
 
