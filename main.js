@@ -1,42 +1,64 @@
-const { Plugin, PluginSettingTab, Setting, Notice, MarkdownView } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, Notice, MarkdownView, ItemView, TFile } = require('obsidian');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
 const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5];
+const VIEW_TYPE_PLAYER = 'vocalis-player';
+const LANGUAGES = { es: 'Español', en: 'English' };
 
+// Femeninas primero en cada idioma: la primera instalada sirve de respaldo
 const VOICE_DEFINITIONS = {
   'sharvard-female': {
     name: 'Sharvard 👩 (España - Femenina)',
     modelFile: 'es_ES-sharvard-medium.onnx',
     speaker: 1,
+    lang: 'es',
     badge: '👩 Sharvard (ES)'
+  },
+  'daniela': {
+    name: 'Daniela 👩 (Argentina - Femenina High)',
+    modelFile: 'es_AR-daniela-high.onnx',
+    speaker: 0,
+    lang: 'es',
+    badge: '👩 Daniela (AR)'
   },
   'sharvard-male': {
     name: 'Sharvard 👨 (España - Masculina)',
     modelFile: 'es_ES-sharvard-medium.onnx',
     speaker: 0,
+    lang: 'es',
     badge: '👨 Sharvard (ES)'
   },
   'davefx': {
     name: 'Davefx 👨 (España - Masculina)',
     modelFile: 'es_ES-davefx-medium.onnx',
     speaker: 0,
+    lang: 'es',
     badge: '👨 Davefx (ES)'
   },
-  'daniela': {
-    name: 'Daniela 👩 (Argentina - Femenina High)',
-    modelFile: 'es_AR-daniela-high.onnx',
+  'lessac': {
+    name: 'Lessac 👩 (US English - Female)',
+    modelFile: 'en_US-lessac-medium.onnx',
     speaker: 0,
-    badge: '👩 Daniela (AR)'
+    lang: 'en',
+    badge: '👩 Lessac (US)'
+  },
+  'ryan': {
+    name: 'Ryan 👨 (US English - Male)',
+    modelFile: 'en_US-ryan-medium.onnx',
+    speaker: 0,
+    lang: 'en',
+    badge: '👨 Ryan (US)'
   }
 };
 
 const DEFAULT_SETTINGS = {
   piperExe: '',
   modelsDir: '',
-  selectedVoice: 'sharvard-female',
+  language: 'es',
+  voiceByLang: { es: 'sharvard-female', en: 'lessac' },
   playbackSpeed: 1.0,
   sentenceSilence: 0.02, // 0.02s para transiciones naturales sin pausas artificiales
   progress: {} // { [filePath]: { index, total, percent, timestamp, snippet } }
@@ -49,15 +71,16 @@ function getLineCh(text, charIndex) {
   return { line, ch };
 }
 
-function parseSentences(fullText) {
+function parseSentences(fullText, lang = 'es') {
   if (!fullText) return [];
 
   // Omitir cabecera YAML Frontmatter
   const fmMatch = fullText.match(/^---[\s\S]*?---\n*/);
   const fmOffset = fmMatch ? fmMatch[0].length : 0;
-  const bodyText = fullText.slice(fmOffset);
+  // URLs a espacios del mismo largo antes de segmentar: sus "?" y "." partirían la frase, y las posiciones no se desplazan
+  const bodyText = fullText.slice(fmOffset).replace(/https?:\/\/[^\s)>\]]+/g, (url) => ' '.repeat(url.length));
 
-  const segmenter = new Intl.Segmenter('es', { granularity: 'sentence' });
+  const segmenter = new Intl.Segmenter(lang, { granularity: 'sentence' });
   const rawSegments = Array.from(segmenter.segment(bodyText));
 
   const sentences = [];
@@ -88,7 +111,11 @@ function parseSentences(fullText) {
       .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
       .replace(/^>\s*/gm, '')
       .replace(/^[-*+]\s+/gm, '')
+      // Celdas de tabla separadas por pausas; la fila |---| queda sin letras y se descarta abajo
+      .replace(/\s*\|\s*/g, ', ')
       .replace(/\s+/g, ' ')
+      .replace(/^[,\s]+|[,\s]+$/g, '')
+      .replace(/(,\s*)+,/g, ',')
       .trim();
 
     // Comprobar que tenga al menos un caracter alfanumérico
@@ -160,10 +187,13 @@ class VocalisTTSPlugin extends Plugin {
     this.prefetchChild = null;
     this.prefetchIndex = null;
     this.audioCache = new Map();
+    this.sessionLang = this.settings.language;
     this.playerEl = null;
 
     this.statusBarItem = this.addStatusBarItem();
     this.updateStatusBar("Listo (Offline)");
+
+    this.registerView(VIEW_TYPE_PLAYER, (leaf) => new VocalisPlayerView(leaf, this));
 
     // Re-aplicar teleprompter si el usuario cambia entre Modo Edición y Modo Lectura o enfoca otra nota
     this.registerEvent(
@@ -174,19 +204,45 @@ class VocalisTTSPlugin extends Plugin {
       })
     );
 
+    // La memoria de lectura se indexa por ruta: seguir renombrados y limpiar borrados
+    this.registerEvent(
+      this.app.vault.on("rename", async (file, oldPath) => {
+        if (!this.settings.progress[oldPath]) return;
+        this.settings.progress[file.path] = this.settings.progress[oldPath];
+        delete this.settings.progress[oldPath];
+        await this.saveSettings();
+        this.updatePlayerUI();
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", async (file) => {
+        if (!this.settings.progress[file.path]) return;
+        delete this.settings.progress[file.path];
+        await this.saveSettings();
+        this.updatePlayerUI();
+      })
+    );
+
     // Comando unificado: Reproducir / Pausar / Reanudar (Funciona en Edición y Lectura)
     this.addCommand({
       id: "play-pause-speech",
       name: "Escuchar / Pausar / Reanudar lectura",
       icon: "volume-2",
       checkCallback: (checking) => {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!activeView) return false;
+        const targetView = this.getTargetMarkdownView();
+        if (!targetView) return false;
         if (!checking) {
-          this.handleUniversalPlayCommand(activeView);
+          this.handleUniversalPlayCommand(targetView);
         }
         return true;
       }
+    });
+
+    this.addCommand({
+      id: "open-player-panel",
+      name: "Abrir panel de Vocalis",
+      icon: "headphones",
+      callback: () => this.activatePlayerView()
     });
 
     // Comando: Detener (Alt + D)
@@ -246,9 +302,9 @@ class VocalisTTSPlugin extends Plugin {
 
     // Icono Ribbon (barra lateral izquierda)
     this.addRibbonIcon("volume-2", "Vocalis TTS (Escuchar / Pausar)", async () => {
-      const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-      if (activeView) {
-        await this.handleUniversalPlayCommand(activeView);
+      const targetView = this.getTargetMarkdownView();
+      if (targetView) {
+        await this.handleUniversalPlayCommand(targetView);
       } else {
         new Notice("Abre una nota en Obsidian para escucharla.");
       }
@@ -258,35 +314,67 @@ class VocalisTTSPlugin extends Plugin {
   }
 
   ensureDefaultPaths() {
-    const pluginBaseDir = this.manifest && this.manifest.dir
-      ? this.manifest.dir
-      : (this.app.vault.adapter && this.app.vault.adapter.basePath
-          ? path.join(this.app.vault.adapter.basePath, '.obsidian', 'plugins', this.manifest.id || 'vocalis-tts')
-          : '');
+    // manifest.dir es relativo al vault (".obsidian/plugins/vocalis-tts"): hay que anteponer la ruta del vault
+    const adapter = this.app.vault.adapter;
+    const vaultBase = adapter && typeof adapter.getBasePath === 'function' ? adapter.getBasePath() : '';
+    const pluginBaseDir = vaultBase && this.manifest.dir ? path.join(vaultBase, this.manifest.dir) : '';
+    if (!pluginBaseDir) return;
 
-    if (!this.settings.piperExe) {
-      const localExe = pluginBaseDir ? path.join(pluginBaseDir, 'piper', 'piper.exe') : '';
-      const dirnameExe = (typeof __dirname !== 'undefined') ? path.join(__dirname, 'piper', 'piper.exe') : '';
-      if (localExe && fs.existsSync(localExe)) {
-        this.settings.piperExe = localExe;
-      } else if (dirnameExe && fs.existsSync(dirnameExe)) {
-        this.settings.piperExe = dirnameExe;
-      } else if (fs.existsSync('C:\\Users\\Yilman\\.gemini\\piper\\piper.exe')) {
-        this.settings.piperExe = 'C:\\Users\\Yilman\\.gemini\\piper\\piper.exe';
-      }
+    const localExe = path.join(pluginBaseDir, 'piper', 'piper.exe');
+    if ((!this.settings.piperExe || !fs.existsSync(this.settings.piperExe)) && fs.existsSync(localExe)) {
+      this.settings.piperExe = localExe;
     }
 
-    if (!this.settings.modelsDir) {
-      const localModels = pluginBaseDir ? path.join(pluginBaseDir, 'piper', 'models') : '';
-      const dirnameModels = (typeof __dirname !== 'undefined') ? path.join(__dirname, 'piper', 'models') : '';
-      if (localModels && fs.existsSync(localModels)) {
-        this.settings.modelsDir = localModels;
-      } else if (dirnameModels && fs.existsSync(dirnameModels)) {
-        this.settings.modelsDir = dirnameModels;
-      } else if (fs.existsSync('C:\\Users\\Yilman\\.gemini\\piper\\models')) {
-        this.settings.modelsDir = 'C:\\Users\\Yilman\\.gemini\\piper\\models';
+    const localModels = path.join(pluginBaseDir, 'piper', 'models');
+    if ((!this.settings.modelsDir || !fs.existsSync(this.settings.modelsDir)) && fs.existsSync(localModels)) {
+      this.settings.modelsDir = localModels;
+    }
+  }
+
+  // Vista de la nota que se está leyendo; si no hay lectura, la última nota usada.
+  // No se usa getActiveViewOfType: al hacer clic en el panel lateral, la hoja activa deja de ser la nota.
+  getTargetMarkdownView() {
+    if (this.currentFile) {
+      for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+        if (leaf.view instanceof MarkdownView && leaf.view.file && leaf.view.file.path === this.currentFile.path) {
+          return leaf.view;
+        }
       }
     }
+    const active = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (active) return active;
+    const recent = this.app.workspace.getMostRecentLeaf();
+    return recent && recent.view instanceof MarkdownView ? recent.view : null;
+  }
+
+  async activatePlayerView() {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(VIEW_TYPE_PLAYER)[0];
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false);
+      if (!leaf) return;
+      await leaf.setViewState({ type: VIEW_TYPE_PLAYER, active: false });
+    }
+    workspace.revealLeaf(leaf);
+  }
+
+  isVoiceInstalled(key) {
+    const def = VOICE_DEFINITIONS[key];
+    return !!def && !!this.settings.modelsDir && fs.existsSync(path.join(this.settings.modelsDir, def.modelFile));
+  }
+
+  // Voz elegida para el idioma; si su modelo no está en disco, la primera instalada del mismo idioma
+  getVoiceFor(lang) {
+    const chosen = this.settings.voiceByLang[lang];
+    if (this.isVoiceInstalled(chosen)) return chosen;
+    return Object.keys(VOICE_DEFINITIONS).find((k) => VOICE_DEFINITIONS[k].lang === lang && this.isVoiceInstalled(k)) || null;
+  }
+
+  getNoteLanguage(file) {
+    const cache = file ? this.app.metadataCache.getFileCache(file) : null;
+    const fmLang = cache && cache.frontmatter && cache.frontmatter.lang;
+    const code = typeof fmLang === 'string' ? fmLang.trim().slice(0, 2).toLowerCase() : '';
+    return LANGUAGES[code] ? code : this.settings.language;
   }
 
   updateStatusBar(text) {
@@ -325,7 +413,9 @@ class VocalisTTSPlugin extends Plugin {
       ? view.getViewData()
       : (view.editor ? view.editor.getValue() : await this.app.vault.read(file));
 
-    this.sentences = parseSentences(text);
+    this.sessionLang = this.getNoteLanguage(file);
+    this.fallbackNoticed = false;
+    this.sentences = parseSentences(text, this.sessionLang);
     if (this.sentences.length === 0) {
       new Notice("La nota no contiene texto legible para sintetizar.");
       return;
@@ -378,7 +468,8 @@ class VocalisTTSPlugin extends Plugin {
     this.isPlaying = true;
     this.isPaused = false;
 
-    this.createFloatingPlayer(file.basename);
+    await this.activatePlayerView();
+    this.updatePlayerUI();
     await this.playCurrentSentence(currentSession);
   }
 
@@ -411,16 +502,19 @@ class VocalisTTSPlugin extends Plugin {
     this.updatePlayerUI();
 
     // 3. Determinar modelo y locutor
-    const voiceDef = VOICE_DEFINITIONS[this.settings.selectedVoice] || VOICE_DEFINITIONS['sharvard-female'];
-    let modelPath = path.join(this.settings.modelsDir, voiceDef.modelFile);
-    let speakerId = (typeof voiceDef.speaker === 'number') ? voiceDef.speaker : 0;
-
-    // Fallback de modelo si no existe
-    if (!fs.existsSync(modelPath)) {
-      new Notice(`⚠️ Voz "${voiceDef.name}" no instalada en models/. Usando Sharvard Femenina.`);
-      modelPath = path.join(this.settings.modelsDir, 'es_ES-sharvard-medium.onnx');
-      speakerId = 1;
+    const voiceKey = this.getVoiceFor(this.sessionLang);
+    if (!voiceKey) {
+      new Notice(`⚠️ No hay voces de ${LANGUAGES[this.sessionLang]} instaladas en la carpeta de modelos.`);
+      this.stopPlayback();
+      return;
     }
+    if (voiceKey !== this.settings.voiceByLang[this.sessionLang] && !this.fallbackNoticed) {
+      this.fallbackNoticed = true;
+      new Notice(`⚠️ La voz elegida no está instalada. Usando ${VOICE_DEFINITIONS[voiceKey].name}.`);
+    }
+    const voiceDef = VOICE_DEFINITIONS[voiceKey];
+    const modelPath = path.join(this.settings.modelsDir, voiceDef.modelFile);
+    const speakerId = voiceDef.speaker;
 
     let blobUrlToPlay = null;
 
@@ -534,6 +628,8 @@ class VocalisTTSPlugin extends Plugin {
         this.prefetchNextSentence(nextIndex, modelPath, speakerId, session);
       }
     } catch (err) {
+      // AbortError: una pausa interrumpió play(); no es un fallo y no debe saltar la frase
+      if (err && err.name === 'AbortError') return;
       console.error("Error al iniciar reproducción:", err);
       if (session === this.sessionId && this.isPlaying) {
         this.skipSentence(1);
@@ -678,8 +774,8 @@ class VocalisTTSPlugin extends Plugin {
   // --- TELEPROMPTER UNIVERSAL (EDICIÓN Y LECTURA) ---
   applyTeleprompter(sentence) {
     if (!sentence) return;
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!activeView) return;
+    const activeView = this.getTargetMarkdownView();
+    if (!activeView || !this.currentFile || !activeView.file || activeView.file.path !== this.currentFile.path) return;
 
     const mode = activeView.getMode ? activeView.getMode() : 'source';
 
@@ -871,7 +967,7 @@ class VocalisTTSPlugin extends Plugin {
     }
 
     this.clearReadingHighlights();
-    this.removeFloatingPlayer();
+    this.updatePlayerUI();
     this.updateStatusBar("Listo (Offline)");
   }
 
@@ -934,29 +1030,26 @@ class VocalisTTSPlugin extends Plugin {
     await this.skipSentence(0);
   }
 
+  currentLang() {
+    return this.isPlaying ? this.sessionLang : this.settings.language;
+  }
+
   async cycleVoice() {
-    const keys = Object.keys(VOICE_DEFINITIONS);
-    let idx = keys.indexOf(this.settings.selectedVoice);
-    let nextIdx = idx;
-    let attempts = 0;
+    // Solo voces del idioma en uso que estén en disco
+    const lang = this.currentLang();
+    const keys = Object.keys(VOICE_DEFINITIONS).filter((k) => VOICE_DEFINITIONS[k].lang === lang && this.isVoiceInstalled(k));
+    if (keys.length === 0) {
+      new Notice(`⚠️ No hay voces de ${LANGUAGES[lang]} instaladas.`);
+      return;
+    }
+    const nextKey = keys[(keys.indexOf(this.getVoiceFor(lang)) + 1) % keys.length];
 
-    // Buscar la siguiente voz disponible en disco
-    do {
-      nextIdx = (nextIdx + 1) % keys.length;
-      attempts++;
-      const candidate = keys[nextIdx];
-      const candidatePath = path.join(this.settings.modelsDir, VOICE_DEFINITIONS[candidate].modelFile);
-      if (fs.existsSync(candidatePath)) {
-        break;
-      }
-    } while (attempts < keys.length);
-
-    this.settings.selectedVoice = keys[nextIdx];
+    this.settings.voiceByLang[lang] = nextKey;
     await this.saveSettings();
 
     this.clearAudioCache();
 
-    const def = VOICE_DEFINITIONS[keys[nextIdx]];
+    const def = VOICE_DEFINITIONS[nextKey];
     new Notice(`🗣️ Voz: ${def.name}`);
     this.updatePlayerUI();
 
@@ -996,185 +1089,137 @@ class VocalisTTSPlugin extends Plugin {
     }
   }
 
-  // --- REPRODUCTOR FLOTANTE AUTÓNOMO ---
-  createFloatingPlayer(title) {
-    this.removeFloatingPlayer();
+  // --- REPRODUCTOR EN LA BARRA LATERAL DERECHA ---
+  renderPlayer(container) {
+    container.empty();
+    this.playerEl = container.createDiv({ cls: "vocalis-panel" });
 
-    this.playerEl = document.createElement("div");
-    this.playerEl.className = "vocalis-floating-player piper-floating-player";
-
-    // Cabecera arrastrable
-    const header = this.playerEl.createDiv({ cls: "vocalis-player-header piper-player-header" });
-    const titleSpan = header.createSpan({ cls: "vocalis-player-note-title piper-player-note-title" });
-    titleSpan.setText(`🎧 ${title}`);
-
-    const closeBtn = header.createEl("button", { text: "✕", cls: "vocalis-player-close piper-player-close" });
-    closeBtn.title = "Cerrar reproductor (Alt + D)";
-    closeBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.stopPlayback();
-    };
-
-    this.makeDraggable(this.playerEl, header);
+    const header = this.playerEl.createDiv({ cls: "vocalis-player-header" });
+    this.playerTitleEl = header.createSpan({ cls: "vocalis-player-note-title" });
+    this.stopBtnEl = header.createEl("button", { text: "⏹️", cls: "vocalis-player-close" });
+    this.stopBtnEl.title = "Detener lectura (Alt + D)";
+    this.stopBtnEl.onclick = () => this.stopPlayback();
 
     // Barra de progreso interactiva (Seek Bar)
-    const progressContainer = this.playerEl.createDiv({ cls: "vocalis-progress-container piper-progress-container" });
-    const progressInfo = progressContainer.createDiv({ cls: "vocalis-progress-info piper-progress-info" });
+    this.progressWrapEl = this.playerEl.createDiv({ cls: "vocalis-progress-container" });
+    const progressInfo = this.progressWrapEl.createDiv({ cls: "vocalis-progress-info" });
     this.progressTextEl = progressInfo.createSpan({ text: "Cargando..." });
     this.progressPercentEl = progressInfo.createSpan({ text: "0%" });
 
-    const track = progressContainer.createDiv({ cls: "vocalis-progress-track piper-progress-track" });
-    this.progressBarEl = track.createDiv({ cls: "vocalis-progress-fill piper-progress-fill" });
+    const track = this.progressWrapEl.createDiv({ cls: "vocalis-progress-track" });
+    this.progressBarEl = track.createDiv({ cls: "vocalis-progress-fill" });
     track.title = "Haz clic en cualquier punto para saltar a esa frase";
     track.onclick = (e) => {
-      e.stopPropagation();
-      if (!this.sentences || this.sentences.length === 0) return;
+      if (!this.isPlaying || !this.sentences || this.sentences.length === 0) return;
       const rect = track.getBoundingClientRect();
       const clickRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      this.currentIndex = Math.floor(clickRatio * this.sentences.length);
+      this.currentIndex = Math.min(this.sentences.length - 1, Math.floor(clickRatio * this.sentences.length));
       this.skipSentence(0);
     };
 
-    // Fila de controles
-    const controls = this.playerEl.createDiv({ cls: "vocalis-controls-row piper-controls-row" });
-    const mainBtns = controls.createDiv({ cls: "vocalis-buttons-main piper-buttons-main" });
+    // Controles principales
+    const mainBtns = this.playerEl.createDiv({ cls: "vocalis-buttons-main" });
 
-    // Botón Anterior
-    const prevBtn = mainBtns.createEl("button", { text: "⏮️", cls: "vocalis-btn piper-btn" });
+    const prevBtn = mainBtns.createEl("button", { text: "⏮️", cls: "vocalis-btn" });
     prevBtn.title = "Frase anterior (Alt + Flecha Izquierda)";
-    prevBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.skipSentence(-1);
-    };
+    prevBtn.onclick = () => this.skipSentence(-1);
 
-    // Botón Play / Pausa autónomo
-    this.playBtnEl = mainBtns.createEl("button", { text: "⏸️", cls: "vocalis-btn vocalis-btn-play piper-btn piper-btn-play" });
+    this.playBtnEl = mainBtns.createEl("button", { text: "▶️", cls: "vocalis-btn vocalis-btn-play" });
     this.playBtnEl.title = "Play / Pausa (Alt + E)";
-    this.playBtnEl.onclick = (e) => {
-      e.stopPropagation();
+    this.playBtnEl.onclick = () => {
       if (this.isPlaying) {
         if (this.isPaused) {
           this.resumePlayback();
         } else {
           this.pausePlayback();
         }
+        return;
+      }
+      const targetView = this.getTargetMarkdownView();
+      if (targetView) {
+        this.startReadingSession(targetView, false);
       } else {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (activeView) {
-          this.startReadingSession(activeView, false);
-        }
+        new Notice("Abre una nota en Obsidian para escucharla.");
       }
     };
 
-    // Botón Siguiente
-    const nextBtn = mainBtns.createEl("button", { text: "⏭️", cls: "vocalis-btn piper-btn" });
+    const nextBtn = mainBtns.createEl("button", { text: "⏭️", cls: "vocalis-btn" });
     nextBtn.title = "Frase siguiente (Alt + Flecha Derecha)";
-    nextBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.skipSentence(1);
-    };
+    nextBtn.onclick = () => this.skipSentence(1);
 
-    // Botón Reiniciar
-    const restartBtn = mainBtns.createEl("button", { text: "🔄", cls: "vocalis-btn piper-btn" });
+    const restartBtn = mainBtns.createEl("button", { text: "🔄", cls: "vocalis-btn" });
     restartBtn.title = "Reiniciar esta nota desde el principio";
-    restartBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.restartNote();
-    };
+    restartBtn.onclick = () => this.restartNote();
 
-    // Botones secundarios (Voz y Velocidad)
-    const secondaryBtns = controls.createDiv({ cls: "vocalis-buttons-secondary piper-buttons-secondary" });
+    // Voz y velocidad
+    const secondaryBtns = this.playerEl.createDiv({ cls: "vocalis-buttons-secondary" });
 
-    this.voiceBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn piper-badge-btn" });
+    this.voiceBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn" });
     this.voiceBtnEl.title = "Clic para cambiar la voz del lector";
-    this.voiceBtnEl.onclick = (e) => {
-      e.stopPropagation();
-      this.cycleVoice();
-    };
+    this.voiceBtnEl.onclick = () => this.cycleVoice();
 
-    this.speedBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn piper-badge-btn" });
+    this.speedBtnEl = secondaryBtns.createEl("button", { cls: "vocalis-badge-btn" });
     this.speedBtnEl.title = "Clic para cambiar velocidad (hasta 2.5x al instante)";
-    this.speedBtnEl.onclick = (e) => {
-      e.stopPropagation();
-      this.cycleSpeed();
-    };
+    this.speedBtnEl.onclick = () => this.cycleSpeed();
 
-    document.body.appendChild(this.playerEl);
+    // Notas con lectura a medias
+    this.playerEl.createDiv({ cls: "vocalis-section-title", text: "Continuar escuchando" });
+    this.continueListEl = this.playerEl.createDiv({ cls: "vocalis-continue-list" });
+
     this.updatePlayerUI();
-  }
-
-  makeDraggable(element, handle) {
-    let isDragging = false;
-    let startX, startY, initialLeft, initialTop;
-
-    handle.onmousedown = (e) => {
-      if (e.target.tagName === "BUTTON") return;
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      const rect = element.getBoundingClientRect();
-      initialLeft = rect.left;
-      initialTop = rect.top;
-
-      const onMouseMove = (moveEvent) => {
-        if (!isDragging) return;
-        const deltaX = moveEvent.clientX - startX;
-        const deltaY = moveEvent.clientY - startY;
-
-        const maxLeft = window.innerWidth - element.offsetWidth - 10;
-        const maxTop = window.innerHeight - element.offsetHeight - 10;
-        const newLeft = Math.max(10, Math.min(maxLeft, initialLeft + deltaX));
-        const newTop = Math.max(10, Math.min(maxTop, initialTop + deltaY));
-
-        element.style.left = `${newLeft}px`;
-        element.style.top = `${newTop}px`;
-        element.style.right = "auto";
-        element.style.bottom = "auto";
-      };
-
-      const onMouseUp = () => {
-        isDragging = false;
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
-      };
-
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
-    };
   }
 
   updatePlayerUI() {
     if (!this.playerEl) return;
 
+    const active = this.isPlaying && this.currentFile;
     const total = this.sentences.length || 1;
     const current = Math.min(total, this.currentIndex + 1);
     const percent = Math.round((current / total) * 100);
 
-    if (this.progressTextEl) {
-      this.progressTextEl.setText(`Frase ${current} de ${total}`);
-    }
-    if (this.progressPercentEl) {
-      this.progressPercentEl.setText(`${percent}%`);
-    }
-    if (this.progressBarEl) {
-      this.progressBarEl.style.width = `${percent}%`;
-    }
-    if (this.playBtnEl) {
-      this.playBtnEl.setText(this.isPaused ? "▶️" : "⏸️");
-    }
-    if (this.voiceBtnEl) {
-      const vDef = VOICE_DEFINITIONS[this.settings.selectedVoice] || VOICE_DEFINITIONS['sharvard-female'];
-      this.voiceBtnEl.setText(vDef.badge);
-    }
-    if (this.speedBtnEl) {
-      this.speedBtnEl.setText(`${this.settings.playbackSpeed}x`);
-    }
+    this.playerTitleEl.setText(active ? `🎧 ${this.currentFile.basename}` : "Sin lectura activa");
+    this.stopBtnEl.toggle(!!active);
+    this.progressWrapEl.toggle(!!active);
+    this.progressTextEl.setText(`Frase ${current} de ${total}`);
+    this.progressPercentEl.setText(`${percent}%`);
+    this.progressBarEl.style.width = `${percent}%`;
+    this.playBtnEl.setText(active && !this.isPaused ? "⏸️" : "▶️");
+
+    const voiceKey = this.getVoiceFor(this.currentLang());
+    this.voiceBtnEl.setText(voiceKey ? VOICE_DEFINITIONS[voiceKey].badge : `⚠️ Sin voz (${this.currentLang().toUpperCase()})`);
+    this.speedBtnEl.setText(`${this.settings.playbackSpeed}x`);
+
+    this.renderContinueList();
   }
 
-  removeFloatingPlayer() {
-    if (this.playerEl) {
-      this.playerEl.remove();
-      this.playerEl = null;
+  renderContinueList() {
+    if (!this.continueListEl) return;
+    this.continueListEl.empty();
+
+    const entries = Object.entries(this.settings.progress)
+      .filter(([p, st]) => st && st.index > 0 && st.percent < 100 && this.app.vault.getAbstractFileByPath(p) instanceof TFile)
+      .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0))
+      .slice(0, 8);
+
+    if (entries.length === 0) {
+      this.continueListEl.createDiv({ cls: "vocalis-continue-empty", text: "No hay notas a medias." });
+      return;
+    }
+
+    for (const [filePath, st] of entries) {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      const item = this.continueListEl.createDiv({ cls: "vocalis-continue-item" });
+      if (this.isPlaying && this.currentFile && this.currentFile.path === filePath) item.addClass("is-active");
+      item.createSpan({ cls: "vocalis-continue-name", text: file.basename });
+      item.createSpan({ cls: "vocalis-continue-percent", text: `${st.percent}%` });
+      item.title = `${filePath}\nClic para abrir y reanudar`;
+      item.onclick = async () => {
+        const leaf = this.app.workspace.getLeaf(false);
+        await leaf.openFile(file);
+        if (leaf.view instanceof MarkdownView) {
+          await this.startReadingSession(leaf.view, false);
+        }
+      };
     }
   }
 
@@ -1183,7 +1228,15 @@ class VocalisTTSPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) || {};
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+    this.settings.progress = Object.assign({}, data.progress);
+    this.settings.voiceByLang = Object.assign({}, DEFAULT_SETTINGS.voiceByLang, data.voiceByLang);
+    // Migración desde 1.0.x: la voz única pasa a ser la voz de español
+    if (data.selectedVoice && !data.voiceByLang && VOICE_DEFINITIONS[data.selectedVoice]) {
+      this.settings.voiceByLang.es = data.selectedVoice;
+    }
+    delete this.settings.selectedVoice;
   }
 
   async saveSettings() {
@@ -1202,17 +1255,37 @@ class VocalisSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.createEl("h2", { text: "Vocalis TTS (Offline, Teleprompter y Memoria)" });
 
+    const lang = this.plugin.settings.language;
+
     new Setting(containerEl)
-      .setName("Voz neuronal por defecto")
-      .setDesc("Selecciona el locutor neuronal para la lectura")
+      .setName("Idioma de lectura")
+      .setDesc("Idioma por defecto de las notas. Una nota puede indicar otro con `lang: en` o `lang: es` en su frontmatter.")
+      .addDropdown((dropdown) => {
+        for (const [code, label] of Object.entries(LANGUAGES)) {
+          dropdown.addOption(code, label);
+        }
+        dropdown.setValue(lang);
+        dropdown.onChange(async (val) => {
+          this.plugin.settings.language = val;
+          await this.plugin.saveSettings();
+          this.plugin.updatePlayerUI();
+          this.display();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName(`Voz neuronal (${LANGUAGES[lang]})`)
+      .setDesc("Locutor para las notas en este idioma. Las voces no instaladas aparecen marcadas.")
       .addDropdown((dropdown) => {
         for (const [key, val] of Object.entries(VOICE_DEFINITIONS)) {
-          dropdown.addOption(key, val.name);
+          if (val.lang !== lang) continue;
+          dropdown.addOption(key, this.plugin.isVoiceInstalled(key) ? val.name : `${val.name} — no instalada`);
         }
-        dropdown.setValue(this.plugin.settings.selectedVoice);
+        dropdown.setValue(this.plugin.settings.voiceByLang[lang]);
         dropdown.onChange(async (val) => {
-          this.plugin.settings.selectedVoice = val;
+          this.plugin.settings.voiceByLang[lang] = val;
           await this.plugin.saveSettings();
+          this.plugin.clearAudioCache();
           this.plugin.updatePlayerUI();
         });
       });
@@ -1310,7 +1383,34 @@ class VocalisSettingTab extends PluginSettingTab {
     li2.innerHTML = "<strong>eSpeak-NG</strong>: Motor fonetizador de código abierto.";
 
     const li3 = creditsList.createEl("li");
-    li3.innerHTML = "<strong>Datasets Neuronales</strong>: Sharvard (ES), Davefx (ES) y Daniela (AR) alojados en Piper Voices.";
+    li3.innerHTML = "<strong>Datasets Neuronales</strong>: Sharvard (ES), Davefx (ES), Daniela (AR), Lessac (US) y Ryan (US) alojados en Piper Voices.";
+  }
+}
+
+class VocalisPlayerView extends ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+
+  getViewType() {
+    return VIEW_TYPE_PLAYER;
+  }
+
+  getDisplayText() {
+    return "Vocalis TTS";
+  }
+
+  getIcon() {
+    return "volume-2";
+  }
+
+  async onOpen() {
+    this.plugin.renderPlayer(this.contentEl);
+  }
+
+  async onClose() {
+    this.plugin.playerEl = null;
   }
 }
 
