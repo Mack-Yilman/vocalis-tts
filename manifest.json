@@ -1,7 +1,7 @@
 {
   "id": "vocalis-tts",
   "name": "Vocalis TTS",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "0.15.0",
   "description": "Offline neural text-to-speech with dual teleprompter and per-note memory. Powered by Piper TTS.",
   "author": "Mack Chirinos",

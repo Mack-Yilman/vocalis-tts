@@ -397,23 +397,19 @@ class VocalisTTSPlugin extends Plugin {
       speakerId = 1; // Usar siempre locutor femenino (1) para evitar que suene masculino por error
     }
 
-    const tempDir = path.dirname(this.settings.piperExe) || process.cwd();
-    const tempWav = path.join(tempDir, `piper_tmp_${Date.now()}.wav`);
-
     try {
-      await this.synthesizeText(currentSt.clean, modelPath, speakerId, tempWav, session);
+      // Síntesis directa en memoria RAM mediante stdout (sin archivos temporales en disco)
+      const wavBuffer = await this.synthesizeText(currentSt.clean, modelPath, speakerId, session);
 
       if (session !== this.sessionId || !this.isPlaying || this.isPaused) {
-        try { fs.unlinkSync(tempWav); } catch (e) {}
         return;
       }
 
-      if (!fs.existsSync(tempWav)) {
+      if (!wavBuffer || wavBuffer.length === 0) {
         this.skipSentence(1);
         return;
       }
 
-      const wavBuffer = fs.readFileSync(tempWav);
       const blob = new Blob([wavBuffer], { type: 'audio/wav' });
       const blobUrl = URL.createObjectURL(blob);
 
@@ -431,7 +427,6 @@ class VocalisTTSPlugin extends Plugin {
       this.currentAudio.playbackRate = this.settings.playbackSpeed || 1.0;
 
       this.currentAudio.onended = async () => {
-        try { fs.unlinkSync(tempWav); } catch (e) {}
         if (session !== this.sessionId || !this.isPlaying || this.isPaused) return;
 
         if (this.currentIndex + 1 >= this.sentences.length) {
@@ -444,7 +439,6 @@ class VocalisTTSPlugin extends Plugin {
       };
 
       this.currentAudio.onerror = (e) => {
-        try { fs.unlinkSync(tempWav); } catch (e) {}
         if (session !== this.sessionId || !this.isPlaying) return;
 
         if (this.currentIndex + 1 >= this.sentences.length) {
@@ -469,32 +463,42 @@ class VocalisTTSPlugin extends Plugin {
     }
   }
 
-  synthesizeText(text, modelPath, speakerId, outputPath, session) {
+  synthesizeText(text, modelPath, speakerId, session) {
     return new Promise((resolve, reject) => {
       if (session !== this.sessionId) {
-        resolve();
+        resolve(null);
         return;
       }
 
       const args = [
         '--model', modelPath,
-        '--output_file', outputPath,
+        '--output_file', '-',
         '--speaker', String(speakerId),
         '--length_scale', '1.0',
         '--sentence_silence', String(this.settings.sentenceSilence)
       ];
 
-      this.activeChild = spawn(this.settings.piperExe, args);
-      this.activeChild.stdin.write(text, 'utf8');
-      this.activeChild.stdin.end();
+      const child = spawn(this.settings.piperExe, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+      this.activeChild = child;
+      const chunks = [];
 
-      this.activeChild.on('close', (code) => {
-        this.activeChild = null;
-        if (code === 0) resolve();
-        else reject(new Error(`Piper exited with code ${code}`));
+      child.stdout.on('data', (chunk) => {
+        chunks.push(chunk);
       });
 
-      this.activeChild.on('error', (err) => {
+      child.stdin.write(text, 'utf8');
+      child.stdin.end();
+
+      child.on('close', (code) => {
+        this.activeChild = null;
+        if (code === 0) {
+          resolve(Buffer.concat(chunks));
+        } else {
+          reject(new Error(`Piper exited with code ${code}`));
+        }
+      });
+
+      child.on('error', (err) => {
         this.activeChild = null;
         reject(err);
       });

@@ -224,11 +224,15 @@
 }
 
 /* --- Resaltado del Teleprompter --- */
-/* Resaltado en Modo Lectura (Reading View / Rendered HTML) */
+/* Resaltado en Modo Lectura (Reading View / Rendered HTML) sin !important */
+.markdown-rendered mark.vocalis-teleprompter-highlight,
+.markdown-rendered mark.piper-teleprompter-highlight,
+.markdown-preview-view mark.vocalis-teleprompter-highlight,
+.markdown-preview-view mark.piper-teleprompter-highlight,
 mark.vocalis-teleprompter-highlight,
 mark.piper-teleprompter-highlight {
-  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.38) !important;
-  color: inherit !important;
+  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.38);
+  color: inherit;
   border-radius: 4px;
   padding: 1px 3px;
   margin: 0 -1px;
@@ -237,9 +241,11 @@ mark.piper-teleprompter-highlight {
   outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.45);
 }
 
-/* Resaltado genérico para Modo Edición */
+/* Resaltado genérico para Modo Edición sin !important */
+.cm-content .vocalis-teleprompter-selection,
+.cm-content .piper-teleprompter-selection,
 .vocalis-teleprompter-selection,
 .piper-teleprompter-selection {
-  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.25) !important;
+  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.25);
   border-radius: 3px;
 }

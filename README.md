@@ -9,6 +9,7 @@ Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper
 ## 🌟 Características Principales
 
 - **100% Offline y Privado**: Sin dependencias de la nube, sin claves de API, sin suscripciones ni telemetría. Todo el procesamiento se realiza en tu procesador local.
+- **Síntesis en Memoria RAM (Cero I/O en Disco)**: El audio se genera y reproduce directamente en memoria mediante transmisión por `stdout`, sin crear ni borrar archivos `.wav` temporales en el disco duro o SSD.
 - **Teleprompter Dual sin Desfase**:
   - **Modo Edición (Live Preview / Source)**: Selección y centrado automático continuo de la frase locutada.
   - **Modo Lectura (Reading View renderizado)**: Algoritmo de anclaje de texto DOM (`TreeWalker` + `Range`) que resalta con precisión quirúrgica la frase hablada sin romper el diseño ni desfasarse por etiquetas Markdown/HTML.
@@ -111,6 +112,19 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
   - **Davefx**: Modelo narrativo de locutor masculino en español de España.
   - **Daniela**: Modelo neuronal de locutora femenina en español latinoamericano (Argentina).
 - **[Obsidian](https://obsidian.md)**: Plataforma de gestión del conocimiento extensible desarrollada por Dynalist Inc.
+
+---
+
+## 🔄 Historial de Versiones
+
+### v1.0.1
+- **Síntesis en Memoria (Zero Disk I/O)**: Transmisión directa del audio sintetizado a la memoria RAM vía `stdout` de Piper. Se elimina la creación, lectura y borrado de archivos `.wav` temporales en disco.
+- **CSS Linter Compliance**: Eliminación total de declaraciones `!important` en `styles.css` mediante selectores de mayor especificidad para máxima compatibilidad con temas de la comunidad.
+- **Seguridad**: Validación estricta de rutas ejecutables y aislamiento seguro de argumentos en `child_process.spawn`.
+- **Atestación Criptográfica**: Configuración de GitHub Actions para firma de procedencia (*Artifact Attestations*).
+
+### v1.0.0
+- Lanzamiento inicial con teleprompter dual (Modo Edición y Modo Lectura), velocidad en tiempo real de 0.75x a 2.5x con pitch preservado, memoria independiente por nota y voces neuronales en español.
 
 ---
 
