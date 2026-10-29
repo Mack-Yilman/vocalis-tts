@@ -24,9 +24,10 @@ Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper
   - Si no hay selección activa: reanuda desde el progreso guardado de la nota.
 - **Panel en la Barra Lateral Derecha**:
   - Reproductor fijo en la barra lateral derecha (como Esquema o Backlinks). Se abre solo al empezar a leer o con el comando *Abrir panel de Vocalis*.
+  - Tarjeta con el nombre de la nota, la frase actual y un botón de play grande; iconos nativos de Obsidian, que respetan tu tema.
   - Barra de progreso interactiva (Seek-bar): haz clic en cualquier porcentaje para saltar directamente a esa frase.
-  - Botones de salto (+/- 1 frase), reinicio de nota (`🔄`), detener, cambio de voz y selector de velocidad.
-  - **Continuar escuchando**: lista de las notas con lectura a medias y su porcentaje; un clic abre la nota y reanuda.
+  - Botones de salto (+/- 1 frase), reinicio de nota, detener, cambio de voz y de velocidad.
+  - **Continuar escuchando**: lista de las notas con lectura a medias, con su porcentaje y una barrita de progreso; un clic abre la nota y reanuda. La **✕** de cada fila (aparece al pasar el mouse) borra solo dónde ibas, sin tocar la nota.
 - **Memoria que Sigue a tus Notas**: si renombras o mueves una nota, conserva su progreso; si la borras, su memoria se limpia.
 - **Lectura Limpia**: se omiten las URLs sueltas (de los enlaces Markdown se lee solo el texto) y las tablas se leen fila por fila, con una pausa entre celdas.
 - **Español e Inglés**:
@@ -134,6 +135,10 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
 ---
 
 ## 🔄 Historial de Versiones
+
+### v1.2.0
+- **Panel rediseñado**: tarjeta con play redondo, iconos nativos de Obsidian en lugar de emojis y chips de voz y velocidad.
+- **Borrar de «Continuar escuchando»**: la ✕ de cada fila quita la posición guardada de esa nota (la nota no se toca).
 
 ### v1.1.0
 - **Voces en inglés** (Lessac y Ryan) y **selector de idioma** en Ajustes, con la voz elegida por idioma. Las notas pueden fijar su idioma con `lang:` en el frontmatter.

@@ -5,148 +5,173 @@
 .vocalis-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding: 4px 2px;
   font-family: var(--font-interface);
   color: var(--text-normal);
   user-select: none;
 }
 
+/* --- Tarjeta del reproductor --- */
+.vocalis-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+
 .vocalis-player-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
   gap: 8px;
 }
 
-.vocalis-player-note-title {
+.vocalis-player-titles {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vocalis-player-note-title {
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: var(--font-ui-small);
 }
 
-.vocalis-player-close {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  box-shadow: none;
+.vocalis-player-subtitle {
+  font-size: var(--font-ui-smaller);
   color: var(--text-muted);
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-  line-height: 1;
-}
-
-.vocalis-player-close:hover {
-  background-color: var(--background-modifier-hover);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Barra de progreso (Seek-Bar) --- */
-.vocalis-progress-container {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.vocalis-progress-info {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
 .vocalis-progress-track {
   width: 100%;
-  height: 7px;
+  height: 6px;
   background-color: var(--background-modifier-border);
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
   cursor: pointer;
   transition: height 0.15s ease;
 }
 
 .vocalis-progress-track:hover {
-  height: 9px;
+  height: 8px;
 }
 
 .vocalis-progress-fill {
   height: 100%;
   background-color: var(--interactive-accent);
-  border-radius: 4px;
-  transition: width 0.15s ease-out;
+  border-radius: 3px;
+  transition: width 0.2s ease-out;
 }
 
-/* --- Botones --- */
-.vocalis-buttons-main,
-.vocalis-buttons-secondary {
+/* --- Controles --- */
+.vocalis-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 10px;
 }
 
-.vocalis-btn {
-  flex: 1;
-  background-color: var(--background-modifier-hover);
-  border: 1px solid var(--background-modifier-border);
-  color: var(--text-normal);
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  height: 30px;
-  padding: 0;
+.vocalis-icon-btn {
+  flex-shrink: 0;
 }
 
-.vocalis-btn:hover {
-  border-color: var(--interactive-accent);
+.vocalis-icon-btn:focus-visible,
+.vocalis-chip:focus-visible {
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-.vocalis-btn:active,
-.vocalis-badge-btn:active {
+.vocalis-panel .vocalis-play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  --icon-size: 20px;
+  --icon-stroke: 2.25px;
+}
+
+.vocalis-panel .vocalis-play-btn:hover,
+.vocalis-panel .vocalis-play-btn:active {
+  background-color: var(--interactive-accent-hover);
+  color: var(--text-on-accent);
+}
+
+.vocalis-panel .vocalis-play-btn:active {
   transform: scale(0.94);
 }
 
-.vocalis-btn-play {
-  background-color: var(--interactive-accent);
+/* El triángulo de play se ve corrido a la izquierda si se centra por su caja */
+.vocalis-play-btn .lucide-play {
+  margin-left: 2px;
+}
+
+/* --- Chips de voz y velocidad --- */
+.vocalis-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.vocalis-chip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 6px);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.vocalis-chip:first-child {
+  flex: 1;
+}
+
+/* La velocidad no se recorta: se encoge el nombre de la voz */
+.vocalis-chip:last-child {
+  flex-shrink: 0;
+}
+
+.vocalis-chip:hover {
+  color: var(--text-normal);
   border-color: var(--interactive-accent);
 }
 
-.vocalis-btn-play:hover {
-  filter: brightness(1.12);
+.vocalis-chip-icon {
+  display: flex;
+  flex-shrink: 0;
+  --icon-size: 14px;
 }
 
-.vocalis-badge-btn {
-  flex: 1;
-  min-width: 0;
-  background-color: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
+.vocalis-chip-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.vocalis-badge-btn:hover {
-  color: var(--text-normal);
-  border-color: var(--interactive-accent);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Continuar escuchando --- */
 .vocalis-section-title {
-  margin-top: 6px;
+  margin-top: 8px;
+  padding: 0 6px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-faint);
 }
 
@@ -158,11 +183,10 @@
 
 .vocalis-continue-item {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: var(--font-ui-small);
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  border-radius: var(--radius-s, 4px);
   cursor: pointer;
 }
 
@@ -170,11 +194,22 @@
   background-color: var(--background-modifier-hover);
 }
 
-.vocalis-continue-item.is-active {
-  color: var(--text-accent);
+.vocalis-continue-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-small);
+}
+
+.vocalis-continue-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  --icon-size: 14px;
 }
 
 .vocalis-continue-name {
+  flex: 1;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -183,11 +218,48 @@
 
 .vocalis-continue-percent {
   flex-shrink: 0;
+  font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
+.vocalis-continue-item.is-active .vocalis-continue-name,
+.vocalis-continue-item.is-active .vocalis-continue-icon {
+  color: var(--text-accent);
+}
+
+/* La ✕ aparece al pasar el mouse o con foco de teclado */
+.vocalis-panel .vocalis-continue-remove {
+  padding: 2px;
+  opacity: 0;
+  --icon-size: 14px;
+}
+
+.vocalis-continue-item:hover .vocalis-continue-remove,
+.vocalis-continue-remove:focus-visible {
+  opacity: 1;
+}
+
+.vocalis-panel .vocalis-continue-remove:hover {
+  color: var(--text-error);
+}
+
+.vocalis-continue-bar {
+  height: 3px;
+  margin-left: 22px;
+  background-color: var(--background-modifier-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vocalis-continue-bar-fill {
+  height: 100%;
+  background-color: var(--interactive-accent);
+  opacity: 0.7;
+}
+
 .vocalis-continue-empty {
+  padding: 0 6px;
   font-size: var(--font-ui-small);
   color: var(--text-faint);
 }
