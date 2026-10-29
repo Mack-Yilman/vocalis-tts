@@ -9,7 +9,7 @@ Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper
 ## 🌟 Características Principales
 
 - **100% Offline y Privado**: Sin dependencias de la nube, sin claves de API, sin suscripciones ni telemetría. Todo el procesamiento se realiza en tu procesador local.
-- **Síntesis en Memoria RAM (Cero I/O en Disco)**: El audio se genera y reproduce directamente en memoria mediante transmisión por `stdout`, sin crear ni borrar archivos `.wav` temporales en el disco duro o SSD.
+- **Audio Cristalino sin Residuos**: Síntesis binaria nativa ultra-rápida con ciclo de vida efímero garantizado. El audio se carga directamente a memoria RAM (Blob URL) y el archivo temporal se destruye al instante en el directorio temporal del sistema (`os.tmpdir()`), garantizando cero corrupción acústica por CRLF y cero acumulación de archivos en disco.
 - **Teleprompter Dual sin Desfase**:
   - **Modo Edición (Live Preview / Source)**: Selección y centrado automático continuo de la frase locutada.
   - **Modo Lectura (Reading View renderizado)**: Algoritmo de anclaje de texto DOM (`TreeWalker` + `Range`) que resalta con precisión quirúrgica la frase hablada sin romper el diseño ni desfasarse por etiquetas Markdown/HTML.
@@ -116,6 +116,10 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
 ---
 
 ## 🔄 Historial de Versiones
+
+### v1.0.2
+- **Corrección Crítica de Audio (Fidelidad Cristalina)**: Solución definitiva al problema de distorsión y ruido parasitario en Windows provocado por la traducción CRLF en el `stdout` de C++. Se implementa síntesis binaria nativa directa con ciclo de vida efímero en `os.tmpdir()` y limpieza inmediata al pasar a memoria RAM (Blob URL).
+- **Gestión de Memoria y Recursos**: Revocación proactiva de objetos Blob URL (`URL.revokeObjectURL`) en pausas y cambios de frase para evitar fugas de memoria en Chromium/Obsidian.
 
 ### v1.0.1
 - **Síntesis en Memoria (Zero Disk I/O)**: Transmisión directa del audio sintetizado a la memoria RAM vía `stdout` de Piper. Se elimina la creación, lectura y borrado de archivos `.wav` temporales en disco.

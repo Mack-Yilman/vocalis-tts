@@ -2,6 +2,7 @@ const { Plugin, PluginSettingTab, Setting, Notice, MarkdownView } = require('obs
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5];
 
@@ -397,13 +398,24 @@ class VocalisTTSPlugin extends Plugin {
       speakerId = 1; // Usar siempre locutor femenino (1) para evitar que suene masculino por error
     }
 
+    const tempWav = path.join(os.tmpdir(), `vocalis_${Date.now()}_${process.pid}_${Math.random().toString(36).slice(2, 7)}.wav`);
+
     try {
-      // Síntesis directa en memoria RAM mediante stdout (sin archivos temporales en disco)
-      const wavBuffer = await this.synthesizeText(currentSt.clean, modelPath, speakerId, session);
+      // Síntesis a archivo temporal efímero en modo binario nativo (evita la corrupción CRLF de Windows stdout)
+      await this.synthesizeText(currentSt.clean, modelPath, speakerId, tempWav, session);
 
       if (session !== this.sessionId || !this.isPlaying || this.isPaused) {
         return;
       }
+
+      if (!fs.existsSync(tempWav)) {
+        this.skipSentence(1);
+        return;
+      }
+
+      const wavBuffer = fs.readFileSync(tempWav);
+      // Eliminar archivo temporal inmediatamente tras cargarlo a memoria RAM
+      try { fs.unlinkSync(tempWav); } catch (e) {}
 
       if (!wavBuffer || wavBuffer.length === 0) {
         this.skipSentence(1);
@@ -411,7 +423,10 @@ class VocalisTTSPlugin extends Plugin {
       }
 
       const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-      const blobUrl = URL.createObjectURL(blob);
+      if (this.currentBlobUrl) {
+        try { URL.revokeObjectURL(this.currentBlobUrl); } catch (e) {}
+      }
+      this.currentBlobUrl = URL.createObjectURL(blob);
 
       if (this.currentAudio) {
         this.currentAudio.onended = null;
@@ -420,7 +435,7 @@ class VocalisTTSPlugin extends Plugin {
         this.currentAudio.src = "";
       }
 
-      this.currentAudio = new Audio(blobUrl);
+      this.currentAudio = new Audio(this.currentBlobUrl);
 
       // Aplicar velocidad con preservación de tono en tiempo real
       this.currentAudio.preservesPitch = true;
@@ -460,31 +475,33 @@ class VocalisTTSPlugin extends Plugin {
           this.skipSentence(1);
         }
       }
+    } finally {
+      // Garantizar que no quede ningún archivo huérfano en disco
+      try {
+        if (fs.existsSync(tempWav)) {
+          fs.unlinkSync(tempWav);
+        }
+      } catch (e) {}
     }
   }
 
-  synthesizeText(text, modelPath, speakerId, session) {
+  synthesizeText(text, modelPath, speakerId, outputPath, session) {
     return new Promise((resolve, reject) => {
       if (session !== this.sessionId) {
-        resolve(null);
+        resolve();
         return;
       }
 
       const args = [
         '--model', modelPath,
-        '--output_file', '-',
+        '--output_file', outputPath,
         '--speaker', String(speakerId),
         '--length_scale', '1.0',
         '--sentence_silence', String(this.settings.sentenceSilence)
       ];
 
-      const child = spawn(this.settings.piperExe, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(this.settings.piperExe, args, { stdio: ['pipe', 'ignore', 'pipe'] });
       this.activeChild = child;
-      const chunks = [];
-
-      child.stdout.on('data', (chunk) => {
-        chunks.push(chunk);
-      });
 
       child.stdin.write(text, 'utf8');
       child.stdin.end();
@@ -492,7 +509,7 @@ class VocalisTTSPlugin extends Plugin {
       child.on('close', (code) => {
         this.activeChild = null;
         if (code === 0) {
-          resolve(Buffer.concat(chunks));
+          resolve();
         } else {
           reject(new Error(`Piper exited with code ${code}`));
         }
@@ -678,6 +695,11 @@ class VocalisTTSPlugin extends Plugin {
       this.currentAudio = null;
     }
 
+    if (this.currentBlobUrl) {
+      try { URL.revokeObjectURL(this.currentBlobUrl); } catch (e) {}
+      this.currentBlobUrl = null;
+    }
+
     this.clearReadingHighlights();
     this.removeFloatingPlayer();
     this.updateStatusBar("Listo (Offline)");
@@ -700,6 +722,11 @@ class VocalisTTSPlugin extends Plugin {
         this.currentAudio.src = "";
       } catch (e) {}
       this.currentAudio = null;
+    }
+
+    if (this.currentBlobUrl) {
+      try { URL.revokeObjectURL(this.currentBlobUrl); } catch (e) {}
+      this.currentBlobUrl = null;
     }
 
     this.sessionId++;
