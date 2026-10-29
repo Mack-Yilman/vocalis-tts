@@ -117,6 +117,12 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
 
 ## 🔄 Historial de Versiones
 
+### v1.0.3
+- **Prefetching Asíncrono (Latencia Cero entre Frases)**: Síntesis anticipada en segundo plano de la siguiente frase mientras se reproduce la actual. Elimina completamente las pausas muertas entre frases en voces pesadas de alta fidelidad como Daniela (Argentina High), permitiendo transiciones instantáneas y fluidas.
+- **Teleprompter Universal Infalible**: Algoritmo de mapeo DOM con colapso de espacios en blanco en Modo Lectura, eliminando pérdidas de resaltado causadas por saltos de línea internos o etiquetas Markdown anidadas (`<strong>`, `<em>`, `<a>`). Soporte de resaltado continuo en elementos contenedores y eventos dinámicos de cambio de vista.
+- **Reactividad Instantánea en Controles**: Cancelación inmediata de procesos huérfanos de Piper al saltar, pausar o usar la barra de progreso (seek-bar), liberando la CPU al 100% de inmediato.
+- **Depuración de Metadatos Markdown**: Filtrado automático de cabeceras de callouts (`> [!NOTE]`) y símbolos sintácticos huérfanos para una locución auditiva limpia.
+
 ### v1.0.2
 - **Corrección Crítica de Audio (Fidelidad Cristalina)**: Solución definitiva al problema de distorsión y ruido parasitario en Windows provocado por la traducción CRLF en el `stdout` de C++. Se implementa síntesis binaria nativa directa con ciclo de vida efímero en `os.tmpdir()` y limpieza inmediata al pasar a memoria RAM (Blob URL).
 - **Gestión de Memoria y Recursos**: Revocación proactiva de objetos Blob URL (`URL.revokeObjectURL`) en pausas y cambios de frase para evitar fugas de memoria en Chromium/Obsidian.

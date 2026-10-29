@@ -241,11 +241,29 @@ mark.piper-teleprompter-highlight {
   outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.45);
 }
 
-/* Resaltado genérico para Modo Edición sin !important */
+/* Resaltado de bloque contenedor de contingencia cuando la frase cruza etiquetas anidadas */
+.markdown-rendered p.vocalis-teleprompter-highlight,
+.markdown-rendered li.vocalis-teleprompter-highlight,
+.markdown-rendered blockquote.vocalis-teleprompter-highlight,
+.markdown-rendered div.vocalis-teleprompter-highlight,
+.markdown-preview-view p.vocalis-teleprompter-highlight,
+.markdown-preview-view li.vocalis-teleprompter-highlight,
+.markdown-preview-view blockquote.vocalis-teleprompter-highlight,
+.vocalis-teleprompter-highlight:not(mark) {
+  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.16);
+  border-radius: 6px;
+  padding: 2px 6px;
+  box-shadow: 0 0 12px rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.22);
+  outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.35);
+  transition: background-color 0.2s ease;
+}
+
+/* Resaltado para Modo Edición (Live Preview y Source Mode) */
 .cm-content .vocalis-teleprompter-selection,
 .cm-content .piper-teleprompter-selection,
 .vocalis-teleprompter-selection,
 .piper-teleprompter-selection {
-  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.25);
+  background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.30);
   border-radius: 3px;
+  outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.40);
 }

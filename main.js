@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS = {
   modelsDir: '',
   selectedVoice: 'sharvard-female',
   playbackSpeed: 1.0,
-  sentenceSilence: 0.15,
+  sentenceSilence: 0.02, // 0.02s para transiciones naturales sin pausas artificiales
   progress: {} // { [filePath]: { index, total, percent, timestamp, snippet } }
 };
 
@@ -62,12 +62,25 @@ function parseSentences(fullText) {
 
   const sentences = [];
   for (const s of rawSegments) {
-    const absIndex = fmOffset + s.index;
+    const rawSeg = s.segment;
+    const leadingWsMatch = rawSeg.match(/^\s+/);
+    const leadingWs = leadingWsMatch ? leadingWsMatch[0].length : 0;
+    const trailingWsMatch = rawSeg.match(/\s+$/);
+    const trailingWs = trailingWsMatch ? trailingWsMatch[0].length : 0;
+
+    const trimmedSeg = rawSeg.trim();
+    if (!trimmedSeg) continue;
+
+    const segmentStart = fmOffset + s.index + leadingWs;
+    const segmentEnd = fmOffset + s.index + rawSeg.length - trailingWs;
 
     // Limpieza de formato markdown para síntesis auditiva pura
-    let clean = s.segment
+    let clean = trimmedSeg
       .replace(/```[\s\S]*?```/g, '')
       .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^>\s*\[![A-Za-z0-9_-]+\]\s*/gm, '')
+      .replace(/\[![A-Za-z0-9_-]+\]/g, '')
+      .replace(/^[A-Za-z0-9_-]+\]/g, '')
       .replace(/[*_~`]/g, '')
       .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
@@ -78,11 +91,12 @@ function parseSentences(fullText) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (clean.length > 0) {
-      const from = getLineCh(fullText, absIndex);
-      const to = getLineCh(fullText, absIndex + s.segment.length);
+    // Comprobar que tenga al menos un caracter alfanumérico
+    if (clean.length > 0 && /[a-zA-Z0-9\u00C0-\u017F]/.test(clean)) {
+      const from = getLineCh(fullText, segmentStart);
+      const to = getLineCh(fullText, segmentEnd);
       sentences.push({
-        raw: s.segment,
+        raw: trimmedSeg,
         clean,
         from,
         to,
@@ -136,16 +150,29 @@ class VocalisTTSPlugin extends Plugin {
 
     this.sessionId = 0;
     this.currentAudio = null;
+    this.currentBlobUrl = null;
     this.currentFile = null;
     this.sentences = [];
     this.currentIndex = 0;
     this.isPlaying = false;
     this.isPaused = false;
     this.activeChild = null;
+    this.prefetchChild = null;
+    this.prefetchIndex = null;
+    this.audioCache = new Map();
     this.playerEl = null;
 
     this.statusBarItem = this.addStatusBarItem();
     this.updateStatusBar("Listo (Offline)");
+
+    // Re-aplicar teleprompter si el usuario cambia entre Modo Edición y Modo Lectura o enfoca otra nota
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        if (this.isPlaying && this.sentences && this.sentences[this.currentIndex]) {
+          this.applyTeleprompter(this.sentences[this.currentIndex]);
+        }
+      })
+    );
 
     // Comando unificado: Reproducir / Pausar / Reanudar (Funciona en Edición y Lectura)
     this.addCommand({
@@ -367,10 +394,7 @@ class VocalisTTSPlugin extends Plugin {
 
     const currentSt = this.sentences[this.currentIndex];
 
-    // 1. Resaltado Teleprompter adaptativo (Edición / Lectura)
-    this.applyTeleprompter(currentSt);
-
-    // 2. Guardar progreso de esta nota específica
+    // 1. Guardar progreso de esta nota específica
     const percent = Math.round(((this.currentIndex + 1) / this.sentences.length) * 100);
     if (this.currentFile) {
       this.settings.progress[this.currentFile.path] = {
@@ -383,10 +407,10 @@ class VocalisTTSPlugin extends Plugin {
       await this.saveSettings();
     }
 
-    // 3. Actualizar interfaz
+    // 2. Actualizar interfaz
     this.updatePlayerUI();
 
-    // 4. Determinar modelo y locutor
+    // 3. Determinar modelo y locutor
     const voiceDef = VOICE_DEFINITIONS[this.settings.selectedVoice] || VOICE_DEFINITIONS['sharvard-female'];
     let modelPath = path.join(this.settings.modelsDir, voiceDef.modelFile);
     let speakerId = (typeof voiceDef.speaker === 'number') ? voiceDef.speaker : 0;
@@ -395,93 +419,222 @@ class VocalisTTSPlugin extends Plugin {
     if (!fs.existsSync(modelPath)) {
       new Notice(`⚠️ Voz "${voiceDef.name}" no instalada en models/. Usando Sharvard Femenina.`);
       modelPath = path.join(this.settings.modelsDir, 'es_ES-sharvard-medium.onnx');
-      speakerId = 1; // Usar siempre locutor femenino (1) para evitar que suene masculino por error
+      speakerId = 1;
     }
 
-    const tempWav = path.join(os.tmpdir(), `vocalis_${Date.now()}_${process.pid}_${Math.random().toString(36).slice(2, 7)}.wav`);
+    let blobUrlToPlay = null;
 
-    try {
-      // Síntesis a archivo temporal efímero en modo binario nativo (evita la corrupción CRLF de Windows stdout)
-      await this.synthesizeText(currentSt.clean, modelPath, speakerId, tempWav, session);
+    // Verificar si la frase ya fue pre-sintetizada en caché (look-ahead)
+    if (this.audioCache && this.audioCache.has(this.currentIndex)) {
+      const cached = this.audioCache.get(this.currentIndex);
+      this.audioCache.delete(this.currentIndex);
+      blobUrlToPlay = cached.blobUrl;
+    } else {
+      // Síntesis a archivo temporal efímero en modo binario nativo
+      const tempWav = path.join(os.tmpdir(), `vocalis_${Date.now()}_${process.pid}_${Math.random().toString(36).slice(2, 7)}.wav`);
+      try {
+        await this.synthesizeText(currentSt.clean, modelPath, speakerId, tempWav, session);
 
-      if (session !== this.sessionId || !this.isPlaying || this.isPaused) {
-        return;
-      }
-
-      if (!fs.existsSync(tempWav)) {
-        this.skipSentence(1);
-        return;
-      }
-
-      const wavBuffer = fs.readFileSync(tempWav);
-      // Eliminar archivo temporal inmediatamente tras cargarlo a memoria RAM
-      try { fs.unlinkSync(tempWav); } catch (e) {}
-
-      if (!wavBuffer || wavBuffer.length === 0) {
-        this.skipSentence(1);
-        return;
-      }
-
-      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-      if (this.currentBlobUrl) {
-        try { URL.revokeObjectURL(this.currentBlobUrl); } catch (e) {}
-      }
-      this.currentBlobUrl = URL.createObjectURL(blob);
-
-      if (this.currentAudio) {
-        this.currentAudio.onended = null;
-        this.currentAudio.onerror = null;
-        this.currentAudio.pause();
-        this.currentAudio.src = "";
-      }
-
-      this.currentAudio = new Audio(this.currentBlobUrl);
-
-      // Aplicar velocidad con preservación de tono en tiempo real
-      this.currentAudio.preservesPitch = true;
-      this.currentAudio.playbackRate = this.settings.playbackSpeed || 1.0;
-
-      this.currentAudio.onended = async () => {
-        if (session !== this.sessionId || !this.isPlaying || this.isPaused) return;
-
-        if (this.currentIndex + 1 >= this.sentences.length) {
-          this.finishReading();
+        if (session !== this.sessionId || !this.isPlaying || this.isPaused) {
           return;
         }
 
-        this.currentIndex++;
-        await this.playCurrentSentence(session);
-      };
-
-      this.currentAudio.onerror = (e) => {
-        if (session !== this.sessionId || !this.isPlaying) return;
-
-        if (this.currentIndex + 1 >= this.sentences.length) {
-          this.finishReading();
-        } else {
+        if (!fs.existsSync(tempWav)) {
           this.skipSentence(1);
+          return;
         }
-      };
 
+        const wavBuffer = fs.readFileSync(tempWav);
+        try { fs.unlinkSync(tempWav); } catch (e) {}
+
+        if (!wavBuffer || wavBuffer.length === 0) {
+          this.skipSentence(1);
+          return;
+        }
+
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+        blobUrlToPlay = URL.createObjectURL(blob);
+      } catch (err) {
+        if (session === this.sessionId && this.isPlaying) {
+          console.error("Error en playCurrentSentence:", err);
+          if (this.currentIndex + 1 >= this.sentences.length) {
+            this.finishReading();
+          } else {
+            this.skipSentence(1);
+          }
+        }
+        return;
+      } finally {
+        try { if (fs.existsSync(tempWav)) fs.unlinkSync(tempWav); } catch (e) {}
+      }
+    }
+
+    if (session !== this.sessionId || !this.isPlaying || this.isPaused) {
+      if (blobUrlToPlay) {
+        try { URL.revokeObjectURL(blobUrlToPlay); } catch (e) {}
+      }
+      return;
+    }
+
+    if (this.currentBlobUrl && this.currentBlobUrl !== blobUrlToPlay) {
+      try { URL.revokeObjectURL(this.currentBlobUrl); } catch (e) {}
+    }
+    this.currentBlobUrl = blobUrlToPlay;
+
+    if (this.currentAudio) {
+      this.currentAudio.onended = null;
+      this.currentAudio.onerror = null;
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.src = "";
+      } catch (e) {}
+    }
+
+    this.currentAudio = new Audio(this.currentBlobUrl);
+    this.currentAudio.preservesPitch = true;
+    this.currentAudio.playbackRate = this.settings.playbackSpeed || 1.0;
+
+    // Sincronizar el teleprompter en cuanto comienza a emitirse sonido
+    this.currentAudio.onplay = () => {
+      if (session === this.sessionId && this.isPlaying) {
+        this.applyTeleprompter(currentSt);
+      }
+    };
+
+    this.currentAudio.onended = async () => {
+      if (session !== this.sessionId || !this.isPlaying || this.isPaused) return;
+
+      if (this.currentIndex + 1 >= this.sentences.length) {
+        this.finishReading();
+        return;
+      }
+
+      this.currentIndex++;
+      await this.playCurrentSentence(session);
+    };
+
+    this.currentAudio.onerror = (e) => {
+      if (session !== this.sessionId || !this.isPlaying) return;
+
+      if (this.currentIndex + 1 >= this.sentences.length) {
+        this.finishReading();
+      } else {
+        this.skipSentence(1);
+      }
+    };
+
+    try {
       await this.currentAudio.play();
+      this.applyTeleprompter(currentSt);
       this.updateStatusBar(`Frase ${this.currentIndex + 1}/${this.sentences.length} (${this.settings.playbackSpeed}x)`);
 
+      // 4. Lanzar PREFETCH asíncrono para la frase siguiente (i + 1)
+      const nextIndex = this.currentIndex + 1;
+      if (nextIndex < this.sentences.length) {
+        this.prefetchNextSentence(nextIndex, modelPath, speakerId, session);
+      }
     } catch (err) {
+      console.error("Error al iniciar reproducción:", err);
       if (session === this.sessionId && this.isPlaying) {
-        console.error("Error en playCurrentSentence:", err);
-        if (this.currentIndex + 1 >= this.sentences.length) {
-          this.finishReading();
-        } else {
-          this.skipSentence(1);
+        this.skipSentence(1);
+      }
+    }
+  }
+
+  async prefetchNextSentence(index, modelPath, speakerId, session) {
+    if (session !== this.sessionId || !this.isPlaying || this.isPaused) return;
+    if (index >= this.sentences.length) return;
+    if (this.audioCache && this.audioCache.has(index)) return;
+    if (this.prefetchIndex === index && this.prefetchChild) return;
+
+    // Limpiar caché vieja si acumula más de 2 audios
+    if (this.audioCache && this.audioCache.size >= 2) {
+      for (const [k, v] of this.audioCache.entries()) {
+        try { URL.revokeObjectURL(v.blobUrl); } catch (e) {}
+        this.audioCache.delete(k);
+        break;
+      }
+    }
+
+    const nextSt = this.sentences[index];
+    if (!nextSt || !nextSt.clean) return;
+
+    this.prefetchIndex = index;
+    const tempWav = path.join(os.tmpdir(), `vocalis_prefetch_${Date.now()}_${process.pid}_${Math.random().toString(36).slice(2, 7)}.wav`);
+
+    try {
+      await new Promise((resolve, reject) => {
+        if (session !== this.sessionId) {
+          resolve();
+          return;
+        }
+
+        const args = [
+          '--model', modelPath,
+          '--output_file', tempWav,
+          '--speaker', String(speakerId),
+          '--length_scale', '1.0',
+          '--sentence_silence', String(this.settings.sentenceSilence || 0.02)
+        ];
+
+        const child = spawn(this.settings.piperExe, args, { stdio: ['pipe', 'ignore', 'pipe'] });
+        this.prefetchChild = child;
+
+        child.stdin.write(nextSt.clean, 'utf8');
+        child.stdin.end();
+
+        child.on('close', (code) => {
+          this.prefetchChild = null;
+          if (code === 0) resolve();
+          else reject(new Error(`Prefetch Piper code ${code}`));
+        });
+
+        child.on('error', (err) => {
+          this.prefetchChild = null;
+          reject(err);
+        });
+      });
+
+      if (session !== this.sessionId || !this.isPlaying) {
+        try { if (fs.existsSync(tempWav)) fs.unlinkSync(tempWav); } catch (e) {}
+        return;
+      }
+
+      if (fs.existsSync(tempWav)) {
+        const buf = fs.readFileSync(tempWav);
+        try { fs.unlinkSync(tempWav); } catch (e) {}
+
+        if (buf && buf.length > 0) {
+          const blob = new Blob([buf], { type: 'audio/wav' });
+          const blobUrl = URL.createObjectURL(blob);
+          if (this.audioCache) {
+            this.audioCache.set(index, { blobUrl });
+          }
         }
       }
+    } catch (err) {
+      try { if (fs.existsSync(tempWav)) fs.unlinkSync(tempWav); } catch (e) {}
     } finally {
-      // Garantizar que no quede ningún archivo huérfano en disco
-      try {
-        if (fs.existsSync(tempWav)) {
-          fs.unlinkSync(tempWav);
+      if (this.prefetchIndex === index) {
+        this.prefetchIndex = null;
+      }
+    }
+  }
+
+  clearAudioCache() {
+    if (this.prefetchChild) {
+      try { this.prefetchChild.kill(); } catch (e) {}
+      this.prefetchChild = null;
+    }
+    this.prefetchIndex = null;
+
+    if (this.audioCache) {
+      for (const [_, v] of this.audioCache.entries()) {
+        if (v && v.blobUrl) {
+          try { URL.revokeObjectURL(v.blobUrl); } catch (e) {}
         }
-      } catch (e) {}
+      }
+      this.audioCache.clear();
     }
   }
 
@@ -497,7 +650,7 @@ class VocalisTTSPlugin extends Plugin {
         '--output_file', outputPath,
         '--speaker', String(speakerId),
         '--length_scale', '1.0',
-        '--sentence_silence', String(this.settings.sentenceSilence)
+        '--sentence_silence', String(this.settings.sentenceSilence || 0.02)
       ];
 
       const child = spawn(this.settings.piperExe, args, { stdio: ['pipe', 'ignore', 'pipe'] });
@@ -524,6 +677,7 @@ class VocalisTTSPlugin extends Plugin {
 
   // --- TELEPROMPTER UNIVERSAL (EDICIÓN Y LECTURA) ---
   applyTeleprompter(sentence) {
+    if (!sentence) return;
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!activeView) return;
 
@@ -539,10 +693,12 @@ class VocalisTTSPlugin extends Plugin {
   highlightInEditMode(view, sentence) {
     this.clearReadingHighlights();
     const editor = view.editor;
-    if (!editor) return;
+    if (!editor || !sentence.from || !sentence.to) return;
 
-    editor.setSelection(sentence.from, sentence.to);
-    editor.scrollIntoView({ from: sentence.from, to: sentence.to }, true);
+    try {
+      editor.setSelection(sentence.from, sentence.to);
+      editor.scrollIntoView({ from: sentence.from, to: sentence.to }, true);
+    } catch (e) {}
   }
 
   highlightInReadingMode(view, targetText) {
@@ -555,25 +711,27 @@ class VocalisTTSPlugin extends Plugin {
     if (target.length === 0) return;
 
     // Buscar en bloques HTML renderizados
-    const blocks = containerEl.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, blockquote, td');
+    const blocks = containerEl.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, div.callout-content');
     let matchedRange = null;
+    let targetBlock = null;
 
+    // 1. Coincidencia completa exacta
     for (const block of Array.from(blocks)) {
-      const blockText = block.textContent.replace(/\s+/g, ' ');
-      if (blockText.includes(target)) {
-        matchedRange = this.createRangeInElement(block, target);
-        if (matchedRange) break;
+      matchedRange = this.createRangeInElement(block, target);
+      if (matchedRange) {
+        targetBlock = block;
+        break;
       }
     }
 
-    // Estrategia de respaldo: primeros 25 caracteres para evitar discrepancias de puntuación
-    if (!matchedRange && target.length > 25) {
-      const snippet = target.slice(0, 25);
+    // 2. Coincidencia por snippet (primeros 30 caracteres) si no hubo coincidencia completa
+    if (!matchedRange && target.length > 30) {
+      const snippet = target.slice(0, 30);
       for (const block of Array.from(blocks)) {
-        const blockText = block.textContent.replace(/\s+/g, ' ');
-        if (blockText.includes(snippet)) {
-          matchedRange = this.createRangeInElement(block, snippet);
-          if (matchedRange) break;
+        matchedRange = this.createRangeInElement(block, snippet);
+        if (matchedRange) {
+          targetBlock = block;
+          break;
         }
       }
     }
@@ -585,51 +743,61 @@ class VocalisTTSPlugin extends Plugin {
         matchedRange.surroundContents(mark);
         mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } catch (e) {
-        // Si el rango cruza etiquetas anidadas, resaltar el contenedor directo
-        const parent = matchedRange.startContainer.parentElement;
-        if (parent) {
-          parent.classList.add('vocalis-teleprompter-highlight');
-          parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Si el rango cruza etiquetas anidadas (ej. <strong>, <a>, <em>)
+        if (targetBlock) {
+          targetBlock.classList.add('vocalis-teleprompter-highlight', 'piper-teleprompter-highlight');
+          targetBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }
+    } else if (targetBlock) {
+      targetBlock.classList.add('vocalis-teleprompter-highlight', 'piper-teleprompter-highlight');
+      targetBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
   createRangeInElement(element, searchText) {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
     let node;
-    let accumulated = '';
     const textNodes = [];
 
     while ((node = walker.nextNode())) {
-      const startIdx = accumulated.length;
-      accumulated += node.textContent;
-      const endIdx = accumulated.length;
-      textNodes.push({ node, startIdx, endIdx, len: node.textContent.length });
+      textNodes.push(node);
     }
 
-    const matchStart = accumulated.indexOf(searchText);
+    if (textNodes.length === 0) return null;
+
+    // Mapeo con colapso de espacios idéntico al renderizado HTML
+    let collapsed = '';
+    const charMap = [];
+
+    for (const tNode of textNodes) {
+      const text = tNode.textContent;
+      for (let c = 0; c < text.length; c++) {
+        const ch = text[c];
+        const isWs = /\s/.test(ch);
+        if (isWs) {
+          if (collapsed.length === 0 || !/\s$/.test(collapsed)) {
+            charMap.push({ node: tNode, offset: c });
+            collapsed += ' ';
+          }
+        } else {
+          charMap.push({ node: tNode, offset: c });
+          collapsed += ch;
+        }
+      }
+    }
+
+    const matchStart = collapsed.indexOf(searchText);
     if (matchStart === -1) return null;
-    const matchEnd = matchStart + searchText.length;
+    const matchEnd = matchStart + searchText.length - 1;
 
-    let startNode = null, startOffset = 0;
-    let endNode = null, endOffset = 0;
+    const startInfo = charMap[matchStart];
+    const endInfo = charMap[matchEnd];
 
-    for (const item of textNodes) {
-      if (!startNode && matchStart >= item.startIdx && matchStart < item.endIdx) {
-        startNode = item.node;
-        startOffset = matchStart - item.startIdx;
-      }
-      if (!endNode && matchEnd > item.startIdx && matchEnd <= item.endIdx) {
-        endNode = item.node;
-        endOffset = matchEnd - item.startIdx;
-      }
-    }
-
-    if (startNode && endNode) {
+    if (startInfo && endInfo) {
       const range = document.createRange();
-      range.setStart(startNode, startOffset);
-      range.setEnd(endNode, endOffset);
+      range.setStart(startInfo.node, startInfo.offset);
+      range.setEnd(endInfo.node, endInfo.offset + 1);
       return range;
     }
 
@@ -685,6 +853,8 @@ class VocalisTTSPlugin extends Plugin {
       this.activeChild = null;
     }
 
+    this.clearAudioCache();
+
     if (this.currentAudio) {
       this.currentAudio.onended = null;
       this.currentAudio.onerror = null;
@@ -712,6 +882,16 @@ class VocalisTTSPlugin extends Plugin {
     if (nextIndex >= this.sentences.length) {
       this.finishReading();
       return;
+    }
+
+    // Cancelar cualquier proceso activo inmediatamente para liberar CPU
+    if (this.activeChild) {
+      try { this.activeChild.kill(); } catch (e) {}
+      this.activeChild = null;
+    }
+
+    if (direction !== 1) {
+      this.clearAudioCache();
     }
 
     if (this.currentAudio) {
@@ -773,6 +953,8 @@ class VocalisTTSPlugin extends Plugin {
 
     this.settings.selectedVoice = keys[nextIdx];
     await this.saveSettings();
+
+    this.clearAudioCache();
 
     const def = VOICE_DEFINITIONS[keys[nextIdx]];
     new Notice(`🗣️ Voz: ${def.name}`);
