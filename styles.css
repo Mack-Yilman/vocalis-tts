@@ -265,46 +265,19 @@
 }
 
 /* --- Resaltado del Teleprompter --- */
-/* Resaltado en Modo Lectura (Reading View / Rendered HTML) sin !important */
-.markdown-rendered mark.vocalis-teleprompter-highlight,
-.markdown-rendered mark.piper-teleprompter-highlight,
-.markdown-preview-view mark.vocalis-teleprompter-highlight,
-.markdown-preview-view mark.piper-teleprompter-highlight,
-mark.vocalis-teleprompter-highlight,
-mark.piper-teleprompter-highlight {
+/* Modo Lectura: CSS Custom Highlight API; no modifica el DOM de la nota */
+::highlight(vocalis) {
   background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.38);
-  color: inherit;
-  border-radius: 4px;
-  padding: 1px 3px;
-  margin: 0 -1px;
-  box-shadow: 0 0 10px rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.35);
-  transition: background-color 0.2s ease;
-  outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.45);
 }
 
-/* Resaltado de bloque contenedor de contingencia cuando la frase cruza etiquetas anidadas */
-.markdown-rendered p.vocalis-teleprompter-highlight,
-.markdown-rendered li.vocalis-teleprompter-highlight,
-.markdown-rendered blockquote.vocalis-teleprompter-highlight,
-.markdown-rendered div.vocalis-teleprompter-highlight,
-.markdown-preview-view p.vocalis-teleprompter-highlight,
-.markdown-preview-view li.vocalis-teleprompter-highlight,
-.markdown-preview-view blockquote.vocalis-teleprompter-highlight,
-.vocalis-teleprompter-highlight:not(mark) {
+/* Respaldo cuando no se puede ubicar la frase dentro de su bloque */
+.vocalis-teleprompter-highlight {
   background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.16);
   border-radius: 6px;
-  padding: 2px 6px;
-  box-shadow: 0 0 12px rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.22);
-  outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.35);
-  transition: background-color 0.2s ease;
 }
 
-/* Resaltado para Modo Edición (Live Preview y Source Mode) */
-.cm-content .vocalis-teleprompter-selection,
-.cm-content .piper-teleprompter-selection,
-.vocalis-teleprompter-selection,
-.piper-teleprompter-selection {
+/* Modo Edición (Live Preview y Source Mode): decoración de CodeMirror */
+.cm-content .vocalis-teleprompter-selection {
   background-color: rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.30);
   border-radius: 3px;
-  outline: 1px solid rgba(var(--interactive-accent-rgb, 120, 100, 240), 0.40);
 }

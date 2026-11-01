@@ -1,9 +1,10 @@
 {
   "name": "vocalis-tts",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Lector neuronal de texto a voz offline y privado para Obsidian con teleprompter dual y memoria de lectura.",
   "main": "main.js",
   "scripts": {
+    "test": "node scripts/selfcheck.js",
     "version": "node -e \"console.log(require('./manifest.json').version)\""
   },
   "keywords": [
