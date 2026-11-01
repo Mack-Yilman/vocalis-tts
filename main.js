@@ -41,6 +41,15 @@ const STRINGS = {
     noticeNoVoicesInstalled: '⚠️ No hay voces de {lang} instaladas.',
     noticeProgressCleared: 'Historial de lectura borrado correctamente.',
     noticePiperFailed: '⚠️ Piper no pudo sintetizar. Revisa la ruta de piper.exe y los modelos en Ajustes.',
+    // setup
+    setupTitle: 'Falta instalar el motor de voz',
+    setupSteps: 'Vocalis lee sin Internet con un motor y voces locales, que se instalan aparte una sola vez. Descarga el instalador, ábrelo con doble clic y elige tu vault y tus voces. Si Windows muestra un aviso, pulsa «Más información» y «Ejecutar de todos modos».',
+    setupUnsupported: 'El motor de voz de Vocalis solo está disponible para Windows de 64 bits.',
+    setupDownload: 'Descargar instalador',
+    setupCheck: 'Volver a comprobar',
+    setupStillMissing: 'Todavía no se encuentra el motor o ninguna voz.',
+    settingsEngineName: 'Motor de voz',
+    settingsEngineReady: 'Instalado y listo.',
     // panel
     panelStatusReady: 'Listo (Offline)',
     panelStatusPaused: 'Pausado',
@@ -115,6 +124,15 @@ const STRINGS = {
     noticeNoVoicesInstalled: '⚠️ No {lang} voices installed.',
     noticeProgressCleared: 'Reading history cleared successfully.',
     noticePiperFailed: '⚠️ Piper could not synthesize. Check the piper.exe path and the models in Settings.',
+    // setup
+    setupTitle: 'The voice engine is not installed yet',
+    setupSteps: 'Vocalis reads offline with a local engine and voices, installed separately once. Download the installer, double-click it and choose your vault and voices. If Windows shows a warning, click "More info" and "Run anyway".',
+    setupUnsupported: 'The Vocalis voice engine is only available for 64-bit Windows.',
+    setupDownload: 'Download installer',
+    setupCheck: 'Check again',
+    setupStillMissing: 'The engine or a voice still cannot be found.',
+    settingsEngineName: 'Voice engine',
+    settingsEngineReady: 'Installed and ready.',
     // panel
     panelStatusReady: 'Ready (Offline)',
     panelStatusPaused: 'Paused',
@@ -225,6 +243,8 @@ const DEFAULT_SETTINGS = {
   progress: {} // { [filePath]: { index, total, percent, timestamp, snippet } }
 };
 
+// Enlace que se abre en el navegador solo si el usuario lo pulsa: el plugin no descarga nada (norma del directorio de Obsidian)
+const SETUP_URL = 'https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd';
 const LOOKAHEAD = 3; // Frases sintetizadas por adelantado
 const HIGHLIGHT_NAME = 'vocalis';
 const WATCH_INTERVAL_MS = 500;
@@ -334,7 +354,11 @@ class PiperProcess {
     this.dead = false;
     this.pending = null;
     this.buffer = '';
-    this.child = spawn(exe, ['--model', modelPath, '--json-input', '--sentence_silence', '0', '--quiet'], { stdio: ['pipe', 'pipe', 'ignore'] });
+    // Piper cae (0xC0000409) con ñ, acentos o emojis en la ruta de su carpeta: se ejecuta desde ella con rutas relativas
+    const cwd = path.dirname(exe);
+    const args = ['--model', path.relative(cwd, modelPath), '--json-input', '--sentence_silence', '0', '--quiet'];
+    if (fs.existsSync(path.join(cwd, 'espeak-ng-data'))) args.push('--espeak_data', 'espeak-ng-data');
+    this.child = spawn(exe, args, { cwd, stdio: ['pipe', 'pipe', 'ignore'] });
     this.fail = (err) => {
       this.dead = true;
       if (this.pending) this.pending.reject(err);
@@ -684,6 +708,19 @@ class VocalisTTSPlugin extends Plugin {
     workspace.revealLeaf(leaf);
   }
 
+  // Motor y al menos una voz en disco
+  isEngineReady() {
+    return !!this.settings.piperExe && fs.existsSync(this.settings.piperExe) && Object.keys(VOICE_DEFINITIONS).some((k) => this.isVoiceInstalled(k));
+  }
+
+  // Sin reiniciar Obsidian: el instalador pudo terminar con el plugin ya cargado
+  checkEngine() {
+    this.ensureDefaultPaths();
+    const ready = this.isEngineReady();
+    this.updatePlayerUI();
+    return ready;
+  }
+
   isVoiceInstalled(key) {
     const def = VOICE_DEFINITIONS[key];
     return !!def && !!this.settings.modelsDir && fs.existsSync(path.join(this.settings.modelsDir, def.modelFile));
@@ -725,6 +762,11 @@ class VocalisTTSPlugin extends Plugin {
 
   async startReadingSession(view, forceCursor) {
     this.stopPlayback();
+
+    if (!this.checkEngine()) {
+      await this.activatePlayerView();
+      return;
+    }
 
     const file = view.file;
     if (!file) {
@@ -1359,10 +1401,29 @@ class VocalisTTSPlugin extends Plugin {
     };
   }
 
+  renderSetupGuide(parent) {
+    this.setupEl = parent.createDiv({ cls: "vocalis-card vocalis-setup" });
+    this.setupEl.createDiv({ cls: "vocalis-player-note-title vocalis-setup-title", text: t('setupTitle') });
+    const supported = process.platform === 'win32';
+    this.setupEl.createDiv({ cls: "vocalis-setup-text", text: t(supported ? 'setupSteps' : 'setupUnsupported') });
+    if (!supported) return;
+    const actions = this.setupEl.createDiv({ cls: "vocalis-chips" });
+    const addAction = (label, onClick) => {
+      const chip = actions.createDiv({ cls: "vocalis-chip", text: label });
+      this.makePressable(chip, onClick);
+    };
+    addAction(t('setupDownload'), () => window.open(SETUP_URL));
+    addAction(t('setupCheck'), () => {
+      if (!this.checkEngine()) new Notice(t('setupStillMissing'));
+    });
+  }
+
   renderPlayer(container) {
     container.empty();
     this.playerEl = container.createDiv({ cls: "vocalis-panel" });
+    this.renderSetupGuide(this.playerEl);
     const card = this.playerEl.createDiv({ cls: "vocalis-card" });
+    this.playerCardEl = card;
 
     const header = card.createDiv({ cls: "vocalis-player-header" });
     const titles = header.createDiv({ cls: "vocalis-player-titles" });
@@ -1424,6 +1485,10 @@ class VocalisTTSPlugin extends Plugin {
 
   updatePlayerUI() {
     if (!this.playerEl) return;
+
+    const ready = this.isEngineReady();
+    this.setupEl.toggle(!ready);
+    this.playerCardEl.toggle(ready);
 
     const active = this.isPlaying && this.currentFile;
     const total = this.sentences.length || 1;
@@ -1524,6 +1589,16 @@ class VocalisSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: t('settingsTitle') });
+
+    const engineReady = this.plugin.checkEngine();
+    const engineSetting = new Setting(containerEl)
+      .setName(t('settingsEngineName'))
+      .setDesc(engineReady ? t('settingsEngineReady') : t(process.platform === 'win32' ? 'setupSteps' : 'setupUnsupported'));
+    if (!engineReady && process.platform === 'win32') {
+      engineSetting
+        .addButton((btn) => btn.setButtonText(t('setupDownload')).setCta().onClick(() => window.open(SETUP_URL)))
+        .addButton((btn) => btn.setButtonText(t('setupCheck')).onClick(() => this.display()));
+    }
 
     const lang = this.plugin.settings.language;
 
@@ -1683,6 +1758,6 @@ class VocalisPlayerView extends ItemView {
   }
 }
 
-VocalisTTSPlugin.internals = { STRINGS, t, UI_LANG, trimWav, matchAlnum, parseSentences };
+VocalisTTSPlugin.internals = { STRINGS, t, UI_LANG, trimWav, matchAlnum, parseSentences, PiperProcess, readCompleteWav };
 
 module.exports = VocalisTTSPlugin;

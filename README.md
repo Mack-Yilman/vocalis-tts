@@ -9,18 +9,19 @@
 > - **Remembers your place:** each note keeps its own position, with a *Continue listening* list in the side panel.
 > - **Your language:** the interface follows Obsidian's language (Spanish or English). Reading language is a setting, or per note with `lang: en` in the frontmatter.
 >
-> **Requirements:** Windows x64, desktop only. The plugin needs the Piper engine and at least one voice, which are **not** included in a community plugin download. Internet is only needed to download them.
+> **Requirements:** Windows x64, desktop only. The Piper engine and voices are installed once with a separate installer, because Obsidian plugins may not install their own dependencies.
 >
-> **Setup** (PowerShell):
+> **Setup:**
 >
-> ```powershell
-> git clone https://github.com/Mack-Yilman/vocalis-tts
-> cd vocalis-tts
-> powershell -ExecutionPolicy Bypass -File .\scripts\download-voice.ps1 -Voice english
-> powershell -ExecutionPolicy Bypass -File .\scripts\install-to-vault.ps1 -VaultPath "C:\Path\To\Your\Vault"
-> ```
+> 1. Install and enable **Vocalis TTS** from *Community plugins*.
+> 2. Download [`vocalis-setup.cmd`](https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd) (or use the button in the plugin's panel) and double-click it. Choose your vault and voices. It is not code-signed, so Windows may warn you: click *More info → Run anyway*. It is plain text if you want to review it first.
+> 3. Press **Check again** in the panel, open a note and press `Alt + E` (play / pause). `Alt + D` stops.
 >
-> Enable **Vocalis TTS** in *Settings → Community plugins*, open a note and press `Alt + E` (play / pause). `Alt + D` stops.
+> **Network use:** the plugin itself never uses the network. Only the installer downloads, once, the Piper engine from GitHub and the voices from Hugging Face, and checks their SHA-256.
+>
+> **Files outside the vault:** while reading, short-lived audio files are written to the system temp folder and deleted right away; the plugin runs the `piper.exe` you configured.
+>
+> **Advanced:** silent install with the `VOCALIS_VAULT` and `VOCALIS_LANG` (`es`, `en`, `both`) environment variables, or use your own Piper and models by setting both paths in the plugin's settings.
 
 ---
 
@@ -94,6 +95,8 @@ Vocalis TTS/
 │       ├── en_US-lessac-medium.onnx (+ .json)
 │       └── en_US-ryan-medium.onnx (+ .json)
 └── scripts/
+    ├── vocalis-setup.cmd         # Instalador para usuarios: motor y voces
+    ├── selfcheck.js              # Comprobación de la lógica (npm test)
     ├── download-voice.ps1        # Descarga de voces adicionales (Daniela, Lessac, Ryan)
     ├── install-to-vault.ps1      # Despliegue y sincronización rápida en un Vault de Obsidian
     └── test-piper.ps1            # Test de síntesis de voz en PowerShell
@@ -117,13 +120,21 @@ Vocalis TTS/
 
 ## 🚀 Instalación y Despliegue en Obsidian
 
-### Opción 1: Despliegue Automático con PowerShell
-Ejecuta el script proporcionado indicando la ruta de tu Vault:
+### Opción 1: Instalador (recomendada)
+1. Instala y activa **Vocalis TTS** desde *Plugins de la comunidad*.
+2. Descarga [`vocalis-setup.cmd`](https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd) (también desde el botón del panel del plugin) y ábrelo con doble clic. Elige tu vault y tus voces: Sharvard (español), Lessac (inglés) o ambas.
+3. Pulsa **Volver a comprobar** en el panel. No hace falta reiniciar Obsidian.
+
+El instalador no está firmado, así que Windows puede avisar: pulsa *Más información → Ejecutar de todos modos*. Es texto legible, por si quieres revisarlo. El plugin no descarga nada por sí mismo, porque las normas de Obsidian no permiten que un plugin instale sus dependencias.
+
+### Opción 2: Desde el repositorio (avanzado)
+Clona el repositorio, descarga las voces con `download-voice.ps1` y ejecuta el script indicando la ruta de tu Vault:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-to-vault.ps1 -VaultPath "C:\Ruta\A\Tu\Vault"
 ```
 
-### Opción 2: Instalación Manual
+### Opción 3: Instalación Manual
+Si ya tienes Piper y sus modelos, basta indicar ambas rutas en **Ajustes > Vocalis TTS**. Si no:
 1. Crea la carpeta `vocalis-tts` dentro de tu Vault en:
    `<Tu_Vault>/.obsidian/plugins/vocalis-tts/`
 2. Copia los archivos `main.js`, `manifest.json`, `styles.css` y la carpeta `piper/` dentro de dicha ubicación.
@@ -148,6 +159,13 @@ Luego ejecuta `install-to-vault.ps1`: copia al vault los modelos que falten. El 
 
 ---
 
+## 🔒 Uso de Red y Archivos Fuera del Vault
+
+- **Red**: el plugin no usa la red. Solo el instalador y `download-voice.ps1` descargan, una vez, el motor desde GitHub (`rhasspy/piper`) y las voces desde Hugging Face (`rhasspy/piper-voices`), porque pesan demasiado para distribuirse con el plugin. El instalador comprueba su SHA-256.
+- **Archivos fuera del vault**: durante la lectura se escriben audios breves en la carpeta temporal del sistema, que se borran al instante, y se ejecuta el `piper.exe` configurado.
+
+---
+
 ## 🎖️ Reconocimientos y Autoría (Credits & Attribution)
 
 Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código abierto excepcionales:
@@ -159,11 +177,17 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
   - **Davefx**: Modelo narrativo de locutor masculino en español de España.
   - **Daniela**: Modelo neuronal de locutora femenina en español latinoamericano (Argentina).
   - **Lessac** y **Ryan**: Modelos en inglés de Estados Unidos (locutora femenina y locutor masculino).
+  - Licencias de los datasets según la ficha oficial de cada voz en [Piper Voices](https://huggingface.co/rhasspy/piper-voices): Sharvard, CC BY 3.0; Lessac, licencia Blizzard 2013.
 - **[Obsidian](https://obsidian.md)**: Plataforma de gestión del conocimiento extensible desarrollada por Dynalist Inc.
 
 ---
 
 ## 🔄 Historial de Versiones
+
+### v1.4.0
+- **Instalador de un clic** (`vocalis-setup.cmd`): instala el motor y las voces elegidas desde sus fuentes oficiales y verifica su SHA-256.
+- **Guía en el panel** cuando falta el motor, con el botón para descargar el instalador y *Volver a comprobar*, sin reiniciar Obsidian.
+- README: declaración del uso de red y de los archivos fuera del vault.
 
 ### v1.3.0
 - **Resaltado renovado**: ya no se queda quieto en notas largas ni se pierde al alternar lectura y edición o al cambiar de pestaña. Resalta frases con negritas o enlaces y filas de tabla, distingue frases repetidas y no mueve tu cursor.
