@@ -1,0 +1,2 @@
+# Un .cmd con saltos LF puede fallar en Windows
+*.cmd text eol=crlf

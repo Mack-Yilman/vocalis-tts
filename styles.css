@@ -51,6 +51,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Guía cuando falta el motor de voz --- */
+.vocalis-setup-title {
+  white-space: normal;
+}
+
+.vocalis-setup-text {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.vocalis-setup .vocalis-chip {
+  flex: 1;
+  text-align: center;
+}
+
 /* --- Barra de progreso (Seek-Bar) --- */
 .vocalis-progress-track {
   width: 100%;

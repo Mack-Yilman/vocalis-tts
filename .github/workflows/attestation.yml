@@ -23,4 +23,5 @@ jobs:
             main.js
             manifest.json
             styles.css
+            scripts/vocalis-setup.cmd
 
