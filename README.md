@@ -17,7 +17,9 @@
 > 2. Download [`vocalis-setup.cmd`](https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd) (or use the button in the plugin's panel) and double-click it. Choose your vault and voices. It is not code-signed, so Windows may warn you: click *More info → Run anyway*. It is plain text if you want to review it first.
 > 3. Press **Check again** in the panel, open a note and press `Alt + E` (play / pause). `Alt + D` stops.
 >
-> **Network use:** the plugin itself never uses the network. Only the installer downloads, once, the Piper engine from GitHub and the voices from Hugging Face, and checks their SHA-256.
+> **Network use:** the plugin itself never uses the network. Only the installer downloads, once, the Piper engine from GitHub and the voices from Hugging Face. If those are unavailable it uses identical copies from [vocalis-engine](https://github.com/Mack-Yilman/vocalis-engine). Every file must match a pinned SHA-256.
+>
+> **Updates:** nothing updates by itself. When a tested engine or voice update is released, *Settings* tells you; run the installer again and it changes only what is needed.
 >
 > **Files outside the vault:** while reading, short-lived audio files are written to the system temp folder and deleted right away; the plugin runs the `piper.exe` you configured.
 >
@@ -68,6 +70,7 @@ Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper
   - 🇪🇸 **Davefx Masculina** (`es_ES-davefx-medium`): Ideal para audiolibros y resúmenes pausados.
   - 🇦🇷 **Daniela Femenina** (`es_AR-daniela-high`): Voz latinoamericana de alta fidelidad (descarga opcional en 1 clic).
 - **Catálogo de Voces Neuronales en Inglés** (descarga opcional):
+  - 🇺🇸 **LJSpeech Femenina** (`en_US-ljspeech-medium`): Voz por defecto del instalador; dataset de dominio público.
   - 🇺🇸 **Lessac Femenina** (`en_US-lessac-medium`): Voz clara y natural.
   - 🇺🇸 **Ryan Masculina** (`en_US-ryan-medium`): Locución masculina natural.
 
@@ -96,6 +99,7 @@ Vocalis TTS/
 │       └── en_US-ryan-medium.onnx (+ .json)
 └── scripts/
     ├── vocalis-setup.cmd         # Instalador para usuarios: motor y voces
+    ├── check-upstream.mjs        # Vigilante semanal de Piper y voces
     ├── selfcheck.js              # Comprobación de la lógica (npm test)
     ├── download-voice.ps1        # Descarga de voces adicionales (Daniela, Lessac, Ryan)
     ├── install-to-vault.ps1      # Despliegue y sincronización rápida en un Vault de Obsidian
@@ -122,7 +126,7 @@ Vocalis TTS/
 
 ### Opción 1: Instalador (recomendada)
 1. Instala y activa **Vocalis TTS** desde *Plugins de la comunidad*.
-2. Descarga [`vocalis-setup.cmd`](https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd) (también desde el botón del panel del plugin) y ábrelo con doble clic. Elige tu vault y tus voces: Sharvard (español), Lessac (inglés) o ambas.
+2. Descarga [`vocalis-setup.cmd`](https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd) (también desde el botón del panel del plugin) y ábrelo con doble clic. Elige tu vault y tus voces: Sharvard (español), LJSpeech (inglés) o ambas.
 3. Pulsa **Volver a comprobar** en el panel. No hace falta reiniciar Obsidian.
 
 El instalador no está firmado, así que Windows puede avisar: pulsa *Más información → Ejecutar de todos modos*. Es texto legible, por si quieres revisarlo. El plugin no descarga nada por sí mismo, porque las normas de Obsidian no permiten que un plugin instale sus dependencias.
@@ -148,6 +152,7 @@ Si ya tienes Piper y sus modelos, basta indicar ambas rutas en **Ajustes > Vocal
 | :--- | :--- | :--- |
 | Sharvard + Davefx (es_ES, medium) | `-Voice spanish` | ~140 MB |
 | Daniela (es_AR, high) | `-Voice daniela` | ~114 MB |
+| LJSpeech (en_US, medium) | `-Voice ljspeech` | ~63 MB |
 | Lessac (en_US, medium) | `-Voice lessac` | ~63 MB |
 | Ryan (en_US, medium) | `-Voice ryan` | ~63 MB |
 | Lessac + Ryan | `-Voice english` | ~126 MB |
@@ -161,7 +166,9 @@ Luego ejecuta `install-to-vault.ps1`: copia al vault los modelos que falten. El 
 
 ## 🔒 Uso de Red y Archivos Fuera del Vault
 
-- **Red**: el plugin no usa la red. Solo el instalador y `download-voice.ps1` descargan, una vez, el motor desde GitHub (`rhasspy/piper`) y las voces desde Hugging Face (`rhasspy/piper-voices`), porque pesan demasiado para distribuirse con el plugin. El instalador comprueba su SHA-256.
+- **Red**: el plugin no usa la red. Solo el instalador y `download-voice.ps1` descargan, una vez, el motor desde GitHub (`rhasspy/piper`) y las voces desde Hugging Face (`rhasspy/piper-voices`), porque pesan demasiado para distribuirse con el plugin. Si esas fuentes no responden, el instalador usa copias idénticas de [`vocalis-engine`](https://github.com/Mack-Yilman/vocalis-engine), y cada archivo debe coincidir con un SHA-256 fijo.
+- **Actualizaciones**: nada se actualiza solo. Cuando se publica una actualización probada, Ajustes lo indica y basta con repetir el instalador, que cambia solo lo necesario.
+- **Vigilante del repositorio**: una tarea semanal de GitHub Actions comprueba estas fuentes y abre un issue si hay novedades. No se ejecuta en tu equipo.
 - **Archivos fuera del vault**: durante la lectura se escriben audios breves en la carpeta temporal del sistema, que se borran al instante, y se ejecuta el `piper.exe` configurado.
 
 ---
@@ -176,13 +183,20 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
   - **Sharvard**: Conjunto de frases fonéticas Spanish Harvard Sentences, entrenado para Piper con locutores femenino y masculino de España.
   - **Davefx**: Modelo narrativo de locutor masculino en español de España.
   - **Daniela**: Modelo neuronal de locutora femenina en español latinoamericano (Argentina).
-  - **Lessac** y **Ryan**: Modelos en inglés de Estados Unidos (locutora femenina y locutor masculino).
-  - Licencias de los datasets según la ficha oficial de cada voz en [Piper Voices](https://huggingface.co/rhasspy/piper-voices): Sharvard, CC BY 3.0; Lessac, licencia Blizzard 2013.
+  - **LJSpeech**, **Lessac** y **Ryan**: Modelos en inglés de Estados Unidos.
+  - Licencias de los datasets según la ficha oficial de cada voz en [Piper Voices](https://huggingface.co/rhasspy/piper-voices): Sharvard, CC BY 3.0; Davefx, CC0; Daniela, CC BY-SA 4.0; LJSpeech, dominio público; Ryan, CC BY-NC-SA 4.0 (no comercial); Lessac, licencia Blizzard 2013 con fines de investigación. Por eso Lessac y Ryan son opcionales y solo se descargan de su fuente oficial.
+- **Motor**: Piper y piper-phonemize (MIT), eSpeak-NG (GPL-3.0) y ONNX Runtime (MIT). Licencias y código fuente en [`vocalis-engine`](https://github.com/Mack-Yilman/vocalis-engine/releases/tag/engine-2023.11.14-2).
 - **[Obsidian](https://obsidian.md)**: Plataforma de gestión del conocimiento extensible desarrollada por Dynalist Inc.
 
 ---
 
 ## 🔄 Historial de Versiones
+
+### v1.5.0
+- **Instalador con respaldo**: si una fuente oficial no responde, usa copias idénticas de [`vocalis-engine`](https://github.com/Mack-Yilman/vocalis-engine), con el mismo SHA-256.
+- **LJSpeech** es la nueva voz inglesa del instalador, por su licencia abierta. Quien ya eligió Lessac o Ryan conserva su voz.
+- **Actualizaciones controladas**: Ajustes avisa cuando hay un motor o voces nuevos; repetir el instalador cambia solo lo necesario.
+- Avisos de licencia del motor y atribuciones de las voces.
 
 ### v1.4.0
 - **Instalador de un clic** (`vocalis-setup.cmd`): instala el motor y las voces elegidas desde sus fuentes oficiales y verifica su SHA-256.
