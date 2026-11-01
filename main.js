@@ -21,6 +21,7 @@ const STRINGS = {
     voiceDaniela: 'Daniela 👩 (Argentina - Femenina High)',
     voiceSharvardMale: 'Sharvard 👨 (España - Masculina)',
     voiceDavefx: 'Davefx 👨 (España - Masculina)',
+    voiceLjspeech: 'LJSpeech 👩 (US English - Female)',
     voiceLessac: 'Lessac 👩 (US English - Female)',
     voiceRyan: 'Ryan 👨 (US English - Male)',
     // cmd
@@ -50,6 +51,7 @@ const STRINGS = {
     setupStillMissing: 'Todavía no se encuentra el motor o ninguna voz.',
     settingsEngineName: 'Motor de voz',
     settingsEngineReady: 'Instalado y listo.',
+    settingsEngineUpdate: 'Hay una actualización del motor o las voces. Vuelve a ejecutar el instalador: conserva tus ajustes y solo cambia lo necesario.',
     // panel
     panelStatusReady: 'Listo (Offline)',
     panelStatusPaused: 'Pausado',
@@ -96,7 +98,7 @@ const STRINGS = {
     settingsCreditsDesc: 'Vocalis TTS integra y da crédito a las siguientes tecnologías y datasets de código abierto:',
     settingsCreditsPiper: 'Rhasspy Piper TTS: Motor neuronal creado por Michael Hansen (Licencia MIT/Apache 2.0).',
     settingsCreditsEspeak: 'eSpeak-NG: Motor fonetizador de código abierto.',
-    settingsCreditsDatasets: 'Datasets Neuronales: Sharvard (ES), Davefx (ES), Daniela (AR), Lessac (US) y Ryan (US) alojados en Piper Voices.'
+    settingsCreditsDatasets: 'Datasets Neuronales: Sharvard (ES), Davefx (ES), Daniela (AR), LJSpeech (US), Lessac (US) y Ryan (US) alojados en Piper Voices.'
   },
   en: {
     // voice
@@ -104,6 +106,7 @@ const STRINGS = {
     voiceDaniela: 'Daniela 👩 (Argentina - Female High)',
     voiceSharvardMale: 'Sharvard 👨 (Spain - Male)',
     voiceDavefx: 'Davefx 👨 (Spain - Male)',
+    voiceLjspeech: 'LJSpeech 👩 (US English - Female)',
     voiceLessac: 'Lessac 👩 (US English - Female)',
     voiceRyan: 'Ryan 👨 (US English - Male)',
     // cmd
@@ -133,6 +136,7 @@ const STRINGS = {
     setupStillMissing: 'The engine or a voice still cannot be found.',
     settingsEngineName: 'Voice engine',
     settingsEngineReady: 'Installed and ready.',
+    settingsEngineUpdate: 'An engine or voice update is available. Run the installer again: it keeps your settings and only changes what is needed.',
     // panel
     panelStatusReady: 'Ready (Offline)',
     panelStatusPaused: 'Paused',
@@ -179,7 +183,7 @@ const STRINGS = {
     settingsCreditsDesc: 'Vocalis TTS integrates and gives credit to the following open source technologies and datasets:',
     settingsCreditsPiper: 'Rhasspy Piper TTS: Neural engine created by Michael Hansen (MIT/Apache 2.0 License).',
     settingsCreditsEspeak: 'eSpeak-NG: Open-source phonemizer engine.',
-    settingsCreditsDatasets: 'Neural Datasets: Sharvard (ES), Davefx (ES), Daniela (AR), Lessac (US) and Ryan (US) hosted on Piper Voices.'
+    settingsCreditsDatasets: 'Neural Datasets: Sharvard (ES), Davefx (ES), Daniela (AR), LJSpeech (US), Lessac (US) and Ryan (US) hosted on Piper Voices.'
   }
 };
 
@@ -218,6 +222,12 @@ const VOICE_DEFINITIONS = {
     lang: 'es',
     badge: '👨 Davefx (ES)'
   },
+  'ljspeech': {
+    nameKey: 'voiceLjspeech',
+    modelFile: 'en_US-ljspeech-medium.onnx',
+    lang: 'en',
+    badge: '👩 LJSpeech (US)'
+  },
   'lessac': {
     nameKey: 'voiceLessac',
     modelFile: 'en_US-lessac-medium.onnx',
@@ -236,7 +246,7 @@ const DEFAULT_SETTINGS = {
   piperExe: '',
   modelsDir: '',
   language: UI_LANG,
-  voiceByLang: { es: 'sharvard-female', en: 'lessac' },
+  voiceByLang: { es: 'sharvard-female', en: 'ljspeech' },
   playbackSpeed: 1.0,
   sentencePauseMs: 50,
   paragraphPauseMs: 200,
@@ -244,6 +254,8 @@ const DEFAULT_SETTINGS = {
 };
 
 // Enlace que se abre en el navegador solo si el usuario lo pulsa: el plugin no descarga nada (norma del directorio de Obsidian)
+// Versión de motor y voces del instalador: igual que $bundle en vocalis-setup.cmd (npm test lo comprueba)
+const ENGINE_BUNDLE = 'engine-2023.11.14-2+voices-b4e358ff';
 const SETUP_URL = 'https://github.com/Mack-Yilman/vocalis-tts/releases/latest/download/vocalis-setup.cmd';
 const LOOKAHEAD = 3; // Frases sintetizadas por adelantado
 const HIGHLIGHT_NAME = 'vocalis';
@@ -711,6 +723,17 @@ class VocalisTTSPlugin extends Plugin {
   // Motor y al menos una voz en disco
   isEngineReady() {
     return !!this.settings.piperExe && fs.existsSync(this.settings.piperExe) && Object.keys(VOICE_DEFINITIONS).some((k) => this.isVoiceInstalled(k));
+  }
+
+  // Solo lee la marca local del instalador, sin red. Sin marca (instalación manual o anterior a 1.5.0) no avisa
+  isEngineUpdateAvailable() {
+    if (!this.settings.piperExe) return false;
+    try {
+      const mark = JSON.parse(fs.readFileSync(path.join(path.dirname(this.settings.piperExe), 'vocalis-engine.json'), 'utf8'));
+      return mark.bundle !== ENGINE_BUNDLE;
+    } catch (e) {
+      return false;
+    }
   }
 
   // Sin reiniciar Obsidian: el instalador pudo terminar con el plugin ya cargado
@@ -1591,10 +1614,11 @@ class VocalisSettingTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: t('settingsTitle') });
 
     const engineReady = this.plugin.checkEngine();
+    const engineUpdate = engineReady && this.plugin.isEngineUpdateAvailable();
     const engineSetting = new Setting(containerEl)
       .setName(t('settingsEngineName'))
-      .setDesc(engineReady ? t('settingsEngineReady') : t(process.platform === 'win32' ? 'setupSteps' : 'setupUnsupported'));
-    if (!engineReady && process.platform === 'win32') {
+      .setDesc(engineUpdate ? t('settingsEngineUpdate') : engineReady ? t('settingsEngineReady') : t(process.platform === 'win32' ? 'setupSteps' : 'setupUnsupported'));
+    if ((!engineReady || engineUpdate) && process.platform === 'win32') {
       engineSetting
         .addButton((btn) => btn.setButtonText(t('setupDownload')).setCta().onClick(() => window.open(SETUP_URL)))
         .addButton((btn) => btn.setButtonText(t('setupCheck')).onClick(() => this.display()));
@@ -1758,6 +1782,6 @@ class VocalisPlayerView extends ItemView {
   }
 }
 
-VocalisTTSPlugin.internals = { STRINGS, t, UI_LANG, trimWav, matchAlnum, parseSentences, PiperProcess, readCompleteWav };
+VocalisTTSPlugin.internals = { ENGINE_BUNDLE, STRINGS, t, UI_LANG, trimWav, matchAlnum, parseSentences, PiperProcess, readCompleteWav };
 
 module.exports = VocalisTTSPlugin;

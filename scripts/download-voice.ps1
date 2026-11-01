@@ -2,7 +2,7 @@
 .SYNOPSIS
     Descargador opcional de voces adicionales para Vocalis TTS.
     Voces: 'sharvard' y 'davefx' (es_ES medium), 'daniela' (es_AR high),
-    'lessac' (en_US medium, femenina), 'ryan' (en_US medium, masculina),
+    'ljspeech' (en_US medium, femenina), 'lessac' (en_US medium, femenina), 'ryan' (en_US medium, masculina),
     'spanish' (sharvard + davefx) o 'english' (lessac + ryan).
 #>
 param(
@@ -24,6 +24,7 @@ $catalog = @{
     "sharvard" = "es/es_ES/sharvard/medium/es_ES-sharvard-medium"
     "davefx"  = "es/es_ES/davefx/medium/es_ES-davefx-medium"
     "daniela" = "es/es_AR/daniela/high/es_AR-daniela-high"
+    "ljspeech" = "en/en_US/ljspeech/medium/en_US-ljspeech-medium"
     "lessac"  = "en/en_US/lessac/medium/en_US-lessac-medium"
     "ryan"    = "en/en_US/ryan/medium/en_US-ryan-medium"
 }
@@ -36,7 +37,7 @@ Write-Host "Destino de modelos: $modelsDir" -ForegroundColor Gray
 
 foreach ($v in $voices) {
     if (-not $catalog.ContainsKey($v)) {
-        Write-Warning "Voz desconocida: $v. Opciones: sharvard, davefx, daniela, lessac, ryan, spanish, english."
+        Write-Warning "Voz desconocida: $v. Opciones: sharvard, davefx, daniela, ljspeech, lessac, ryan, spanish, english."
         continue
     }
     $rel = $catalog[$v]

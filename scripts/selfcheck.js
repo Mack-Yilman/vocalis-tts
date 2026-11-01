@@ -18,7 +18,7 @@ const realLoad = Module._load;
 Module._load = (request, ...rest) => mocks[request] || realLoad(request, ...rest);
 
 const mainPath = path.join(__dirname, '..', 'main.js');
-const { STRINGS, t, UI_LANG, trimWav, matchAlnum, parseSentences } = require(mainPath).internals;
+const { ENGINE_BUNDLE, STRINGS, t, UI_LANG, trimWav, matchAlnum, parseSentences } = require(mainPath).internals;
 
 // --- Idiomas: mismas claves y ningún t() sin definir
 assert.strictEqual(UI_LANG, 'es');
@@ -34,6 +34,13 @@ assert.strictEqual(t('panelProgressSubtitle', { current: 1, total: 2, percent: 5
 for (const banned of [/\bfetch\s*\(/, /\brequestUrl\b/, /XMLHttpRequest/, /WebSocket/]) {
   assert.ok(!banned.test(source), `main.js no debe usar la red: ${banned}`);
 }
+
+// --- Instalador y plugin de acuerdo; cada voz del instalador existe en el catálogo
+const setupText = fs.readFileSync(path.join(__dirname, 'vocalis-setup.cmd'), 'utf8');
+assert.ok(setupText.includes(`$bundle = '${ENGINE_BUNDLE}'`), 'ENGINE_BUNDLE distinto de $bundle en el instalador');
+const setupVoices = [...setupText.matchAll(/path = '[^']*\/([^'/]+)'/g)].map((m) => m[1]);
+assert.strictEqual(setupVoices.length, 2);
+for (const voice of setupVoices) assert.ok(source.includes(`modelFile: '${voice}.onnx'`), `voz sin catálogo: ${voice}`);
 
 // --- trimWav: 22050 Hz; 100 ms de silencio, 200 ms de voz, 100 ms de silencio
 function wav(samples, rate = 22050) {
