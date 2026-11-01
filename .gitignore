@@ -18,6 +18,20 @@ playback_*.wav
 agents.md
 claude.md
 gemini.md
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+GEMINI.md
+.claude/
+.agents/
+.gemini/
+CLAUDE-SECURITY-*/
+
+# Secretos
+.env
+.env.*
+*.key
+*.pem
 
 # Configuración y datos locales del usuario
 data.json

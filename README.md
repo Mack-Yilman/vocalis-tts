@@ -1,5 +1,29 @@
 # Vocalis TTS para Obsidian (Offline, Teleprompter Dual y Memoria)
 
+> ## English summary
+>
+> **Vocalis TTS** reads your Obsidian notes aloud with natural neural voices (Spanish and English). Speech is generated on your computer by [Piper](https://github.com/rhasspy/piper), so reading works the same with or without internet, with no accounts, API keys or telemetry.
+>
+> - **Follows along:** highlights and scrolls to the current sentence in both Reading view and Live Preview, without moving your cursor.
+> - **Smooth playback:** sentences run together with short, adjustable pauses; 0.75x to 2.5x speed with natural pitch.
+> - **Remembers your place:** each note keeps its own position, with a *Continue listening* list in the side panel.
+> - **Your language:** the interface follows Obsidian's language (Spanish or English). Reading language is a setting, or per note with `lang: en` in the frontmatter.
+>
+> **Requirements:** Windows x64, desktop only. The plugin needs the Piper engine and at least one voice, which are **not** included in a community plugin download. Internet is only needed to download them.
+>
+> **Setup** (PowerShell):
+>
+> ```powershell
+> git clone https://github.com/Mack-Yilman/vocalis-tts
+> cd vocalis-tts
+> powershell -ExecutionPolicy Bypass -File .\scripts\download-voice.ps1 -Voice english
+> powershell -ExecutionPolicy Bypass -File .\scripts\install-to-vault.ps1 -VaultPath "C:\Path\To\Your\Vault"
+> ```
+>
+> Enable **Vocalis TTS** in *Settings → Community plugins*, open a note and press `Alt + E` (play / pause). `Alt + D` stops.
+
+---
+
 Plugin de lectura en voz alta (Text-to-Speech) neuronal de alto rendimiento, privacidad absoluta y 100% offline para Obsidian, en **español e inglés**. Integra teleprompter visual sin desfase (tanto en **Modo Edición** como en **Modo Lectura**), velocidad dinámica hasta 2.5x en tiempo real y memoria de posición independiente por cada nota.
 
 Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper TTS**. Publicado bajo **Licencia MIT** por **Mack Chirinos**.
@@ -11,8 +35,9 @@ Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper
 - **100% Offline y Privado**: Sin dependencias de la nube, sin claves de API, sin suscripciones ni telemetría. Todo el procesamiento se realiza en tu procesador local.
 - **Audio Cristalino sin Residuos**: Síntesis binaria nativa ultra-rápida con ciclo de vida efímero garantizado. El audio se carga directamente a memoria RAM (Blob URL) y el archivo temporal se destruye al instante en el directorio temporal del sistema (`os.tmpdir()`), garantizando cero corrupción acústica por CRLF y cero acumulación de archivos en disco.
 - **Teleprompter Dual sin Desfase**:
-  - **Modo Edición (Live Preview / Source)**: Selección y centrado automático continuo de la frase locutada.
-  - **Modo Lectura (Reading View renderizado)**: Algoritmo de anclaje de texto DOM (`TreeWalker` + `Range`) que resalta con precisión quirúrgica la frase hablada sin romper el diseño ni desfasarse por etiquetas Markdown/HTML.
+  - **Modo Edición (Live Preview / Source)**: Resaltado y centrado de la frase locutada sin mover tu cursor ni tu selección.
+  - **Modo Lectura (Reading View renderizado)**: Resalta la frase sin modificar el contenido de la nota, aunque cruce negritas o enlaces, y llega a ella en notas muy largas.
+  - Se recupera solo al alternar entre modos, cambiar de pestaña o volver a la nota.
 - **Velocidad Real hasta 2.5x con Tono Preservado**:
   - Escala de velocidades: `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, `2.0x`, `2.25x` y `2.5x`.
   - Los cambios de velocidad se aplican **al vuelo en tiempo real**, incluso a mitad de frase, conservando el tono natural de la voz (sin distorsión ni voz de ardilla).
@@ -30,6 +55,9 @@ Potenciado por el motor de síntesis neuronal de código abierto **Rhasspy Piper
   - **Continuar escuchando**: lista de las notas con lectura a medias, con su porcentaje y una barrita de progreso; un clic abre la nota y reanuda. La **✕** de cada fila (aparece al pasar el mouse) borra solo dónde ibas, sin tocar la nota.
 - **Memoria que Sigue a tus Notas**: si renombras o mueves una nota, conserva su progreso; si la borras, su memoria se limpia.
 - **Lectura Limpia**: se omiten las URLs sueltas (de los enlaces Markdown se lee solo el texto) y las tablas se leen fila por fila, con una pausa entre celdas.
+- **Lectura Continua**: la voz mantiene el modelo cargado y prepara por adelantado las frases siguientes. Las pausas entre frases y entre párrafos se ajustan en **Ajustes > Vocalis TTS**.
+- **Funciona con o sin Internet**: una vez instaladas las voces, nada de la lectura usa la red.
+- **Interfaz en tu Idioma**: los textos siguen el idioma de Obsidian (español o, en cualquier otro caso, inglés).
 - **Español e Inglés**:
   - En **Ajustes > Vocalis TTS** eliges el *Idioma de lectura* y, para ese idioma, su voz.
   - Una nota puede indicar su propio idioma en el frontmatter (`lang: en` o `lang: es`), sin cambiar el ajuste global.
@@ -107,6 +135,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-to-vault.ps1 -VaultPa
 
 | Voz | Comando | Tamaño |
 | :--- | :--- | :--- |
+| Sharvard + Davefx (es_ES, medium) | `-Voice spanish` | ~140 MB |
 | Daniela (es_AR, high) | `-Voice daniela` | ~114 MB |
 | Lessac (en_US, medium) | `-Voice lessac` | ~63 MB |
 | Ryan (en_US, medium) | `-Voice ryan` | ~63 MB |
@@ -135,6 +164,14 @@ Vocalis TTS es posible gracias al trabajo de creadores y proyectos de código ab
 ---
 
 ## 🔄 Historial de Versiones
+
+### v1.3.0
+- **Resaltado renovado**: ya no se queda quieto en notas largas ni se pierde al alternar lectura y edición o al cambiar de pestaña. Resalta frases con negritas o enlaces y filas de tabla, distingue frases repetidas y no mueve tu cursor.
+- **Interfaz en español e inglés**, según el idioma de Obsidian. El idioma de lectura de una instalación nueva sigue al de la interfaz.
+- **Sin avisos molestos**: iniciar, detener o cambiar de voz ya no muestran notificaciones; solo quedan los errores.
+- **Audio más fluido**: un solo proceso de Piper por lectura, tres frases preparadas por adelantado y silencios recortados. Nuevos ajustes de pausa entre frases y entre párrafos (reemplazan a *Pausa entre oraciones*).
+- **Corrección**: reanudar tras pausar durante la síntesis ya no deja la lectura atascada.
+- `download-voice.ps1` también descarga Sharvard y Davefx.
 
 ### v1.2.0
 - **Panel rediseñado**: tarjeta con play redondo, iconos nativos de Obsidian en lugar de emojis y chips de voz y velocidad.
